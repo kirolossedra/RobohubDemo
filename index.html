@@ -1972,8 +1972,6 @@
       return;
     }
 
-    refreshPlotStartTimestampFromEligibleSamples();
-
     const visibleStreams = getFilteredSortedStreams();
     let datasets = [];
     let plottedCount = 0;
@@ -2272,7 +2270,7 @@
     // That can bias the chart toward only the stream that happened to send last.
     // Instead, freeze the current database keys and start plotting only NEW samples.
     plotMode = "running";
-    plotStartTimestamp = null;
+    plotStartTimestamp = Date.now();
     plotExcludedKeys = new Set(allSamples.map(sample => sample.key));
     lastPlottedCount = 0;
 
