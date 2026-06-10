@@ -884,7 +884,7 @@
       <div>
         <h2 class="plot-title">Combined Throughput Plot</h2>
         <p class="plot-subtitle">
-          X-axis is numeric seconds from <strong>0 to 60</strong>. The primary x value is <strong>elapsedEndSec</strong> from iperf; timestamp fields are extracted for diagnostics and fallback ordering.
+          X-axis is numeric seconds from <strong>0 to 60</strong>. The primary x value is <strong>elapsedEndSec</strong> from iperf. All streams use one shared global 0–60 second window, so one stream cannot replace or alternate with another.
         </p>
       </div>
       <div class="plot-subtitle" id="plotWindowLabel">Window: —</div>
@@ -895,7 +895,7 @@
     </div>
 
     <div class="plot-legend-note">
-      Solid line = throughput by elapsedEndSec. Short dashed line = per-stream max. Long dashed lines = average + STD and average − STD for that stream.
+      Solid lines = all stream throughput curves plotted together in the same global 0–60 s window. Short dashed line = per-stream max. Long dashed lines = average + STD and average − STD for that stream.
     </div>
   </section>
 
@@ -1064,10 +1064,7 @@
   let plotExcludedKeys = new Set();
   let lastPlottedCount = 0;
 
-  const streamsQuery = query(
-    ref(db, DATABASE_BRANCH),
-    orderByChild("sentAt")
-  );
+  const streamsRef = ref(db, DATABASE_BRANCH);
 
   function escapeHtml(value) {
     return String(value ?? "")
@@ -1517,6 +1514,7 @@
     plottedSamples.textContent = lastPlottedCount;
     lastUpdated.textContent = formatDashboardTime();
     updatePlotStateUi();
+    updateDiagnostics();
   }
 
 
@@ -1787,94 +1785,115 @@
       });
   }
 
-  function getElapsedWindowSamples(samples) {
-    const elapsedSamples = samples
-      .filter(sample => Number.isFinite(sample.elapsedEndSec))
-      .sort((a, b) => a.elapsedEndSec - b.elapsedEndSec);
+  function getGlobalPlotContext(visibleStreams) {
+    const eligibleByCode = new Map();
+    const allEligible = [];
 
-    if (elapsedSamples.length === 0) {
-      return null;
+    for (const stream of visibleStreams) {
+      const eligibleSamples = getEligibleSamplesForStream(stream);
+      eligibleByCode.set(stream.code, eligibleSamples);
+      allEligible.push(...eligibleSamples.map(sample => ({ ...sample, streamCode: stream.code })));
     }
 
-    const latestElapsed = elapsedSamples[elapsedSamples.length - 1].elapsedEndSec;
-    const minuteIndex = Math.max(0, Math.floor(Math.max(0, latestElapsed - 0.000001) / 60));
-    const windowStartSec = minuteIndex * 60;
-    const windowEndSec = windowStartSec + 60;
+    if (allEligible.length === 0) {
+      return {
+        source: "none",
+        windowStartSec: null,
+        windowEndSec: null,
+        samplesByCode: new Map()
+      };
+    }
 
-    const windowSamples = elapsedSamples.filter(sample => {
-      const elapsed = sample.elapsedEndSec;
-      if (!Number.isFinite(elapsed)) {
-        return false;
+    const elapsedSamples = allEligible
+      .filter(sample => Number.isFinite(sample.elapsedEndSec))
+      .sort((a, b) => a.elapsedEndSec - b.elapsedEndSec || a.sentAt - b.sentAt);
+
+    if (elapsedSamples.length > 0) {
+      const latestElapsed = elapsedSamples[elapsedSamples.length - 1].elapsedEndSec;
+      const minuteIndex = Math.max(0, Math.floor(Math.max(0, latestElapsed - 0.000001) / 60));
+      const windowStartSec = minuteIndex * 60;
+      const windowEndSec = windowStartSec + 60;
+      const samplesByCode = new Map();
+
+      for (const stream of visibleStreams) {
+        const streamSamples = (eligibleByCode.get(stream.code) || [])
+          .filter(sample => Number.isFinite(sample.elapsedEndSec))
+          .filter(sample => {
+            if (minuteIndex === 0) {
+              return sample.elapsedEndSec >= 0 && sample.elapsedEndSec <= windowEndSec;
+            }
+
+            return sample.elapsedEndSec > windowStartSec && sample.elapsedEndSec <= windowEndSec;
+          })
+          .sort((a, b) => a.elapsedEndSec - b.elapsedEndSec || a.sentAt - b.sentAt)
+          .map(sample => ({
+            ...sample,
+            plotX: Math.max(0, Math.min(60, sample.elapsedEndSec - windowStartSec))
+          }));
+
+        samplesByCode.set(stream.code, streamSamples);
       }
 
-      if (minuteIndex === 0) {
-        return elapsed >= 0 && elapsed <= windowEndSec;
-      }
+      return {
+        source: "global_elapsedEndSec",
+        windowStartSec,
+        windowEndSec,
+        samplesByCode
+      };
+    }
 
-      return elapsed > windowStartSec && elapsed <= windowEndSec;
-    });
-
-    return {
-      source: "elapsedEndSec",
-      windowStartSec,
-      windowEndSec,
-      samples: windowSamples.map(sample => ({
-        ...sample,
-        plotX: Math.max(0, Math.min(60, sample.elapsedEndSec - windowStartSec))
-      }))
-    };
-  }
-
-  function getTimestampFallbackWindowSamples(samples) {
-    const timestampSamples = samples
+    const timestampSamples = allEligible
       .filter(sample => Number.isFinite(sample.sentAt))
       .sort((a, b) => a.sentAt - b.sentAt);
 
     if (timestampSamples.length === 0) {
-      return null;
+      return {
+        source: "none",
+        windowStartSec: null,
+        windowEndSec: null,
+        samplesByCode: new Map()
+      };
     }
 
-    const streamStart = timestampSamples[0].sentAt;
-    const relativeSamples = timestampSamples.map(sample => ({
-      ...sample,
-      relativeSec: Math.max(0, (sample.sentAt - streamStart) / 1000.0)
-    }));
-
-    const latestRelativeSec = relativeSamples[relativeSamples.length - 1].relativeSec;
+    const globalStartTimestamp = timestampSamples[0].sentAt;
+    const latestRelativeSec = Math.max(...timestampSamples.map(sample => Math.max(0, (sample.sentAt - globalStartTimestamp) / 1000.0)));
     const minuteIndex = Math.max(0, Math.floor(Math.max(0, latestRelativeSec - 0.000001) / 60));
     const windowStartSec = minuteIndex * 60;
     const windowEndSec = windowStartSec + 60;
+    const samplesByCode = new Map();
 
-    const windowSamples = relativeSamples.filter(sample => {
-      if (minuteIndex === 0) {
-        return sample.relativeSec >= 0 && sample.relativeSec <= windowEndSec;
-      }
+    for (const stream of visibleStreams) {
+      const streamSamples = (eligibleByCode.get(stream.code) || [])
+        .filter(sample => Number.isFinite(sample.sentAt))
+        .map(sample => ({
+          ...sample,
+          relativeSec: Math.max(0, (sample.sentAt - globalStartTimestamp) / 1000.0)
+        }))
+        .filter(sample => {
+          if (minuteIndex === 0) {
+            return sample.relativeSec >= 0 && sample.relativeSec <= windowEndSec;
+          }
 
-      return sample.relativeSec > windowStartSec && sample.relativeSec <= windowEndSec;
-    });
+          return sample.relativeSec > windowStartSec && sample.relativeSec <= windowEndSec;
+        })
+        .sort((a, b) => a.relativeSec - b.relativeSec || a.sentAt - b.sentAt)
+        .map(sample => ({
+          ...sample,
+          plotX: Math.max(0, Math.min(60, sample.relativeSec - windowStartSec))
+        }));
+
+      samplesByCode.set(stream.code, streamSamples);
+    }
 
     return {
-      source: "timestamp_fallback",
+      source: "global_timestamp_fallback",
       windowStartSec,
       windowEndSec,
-      samples: windowSamples.map(sample => ({
-        ...sample,
-        plotX: Math.max(0, Math.min(60, sample.relativeSec - windowStartSec))
-      }))
+      samplesByCode
     };
   }
 
-  function getPlotWindowSamples(stream) {
-    const eligibleSamples = getEligibleSamplesForStream(stream);
-
-    if (eligibleSamples.length === 0) {
-      return null;
-    }
-
-    return getElapsedWindowSamples(eligibleSamples) ?? getTimestampFallbackWindowSamples(eligibleSamples);
-  }
-
-  function makeHorizontalDataset(label, yValue, color, dash, width = 2) {
+  function makeHorizontalDataset(label, yValue, color, dash, width = 2, streamCode = "", axisSource = "") {
     return {
       label,
       data: [
@@ -1890,24 +1909,26 @@
       pointHitRadius: 0,
       fill: false,
       tension: 0,
-      spanGaps: true
+      spanGaps: true,
+      streamCode,
+      axisSource
     };
   }
 
-  function buildDatasetsForStream(stream) {
-    const plotWindow = getPlotWindowSamples(stream);
+  function buildDatasetsForStream(stream, globalPlotContext) {
+    const plotSamples = globalPlotContext.samplesByCode.get(stream.code) || [];
 
-    if (!plotWindow || plotWindow.samples.length === 0) {
+    if (plotSamples.length === 0) {
       return {
         datasets: [],
         plottedCount: 0,
-        windowStartOffset: null,
-        windowEndOffset: null,
-        axisSource: "none"
+        windowStartOffset: globalPlotContext.windowStartSec,
+        windowEndOffset: globalPlotContext.windowEndSec,
+        axisSource: globalPlotContext.source
       };
     }
 
-    const points = plotWindow.samples
+    const points = plotSamples
       .filter(sample => Number.isFinite(sample.plotX))
       .sort((a, b) => a.plotX - b.plotX)
       .map(sample => ({
@@ -1915,20 +1936,21 @@
         y: sample.throughputMbps,
         sampleKey: sample.key,
         elapsedEndSec: sample.elapsedEndSec,
-        timestampMs: sample.sentAt
+        timestampMs: sample.sentAt,
+        streamCode: stream.code
       }));
 
     if (points.length === 0) {
       return {
         datasets: [],
         plottedCount: 0,
-        windowStartOffset: plotWindow.windowStartSec,
-        windowEndOffset: plotWindow.windowEndSec,
-        axisSource: plotWindow.source
+        windowStartOffset: globalPlotContext.windowStartSec,
+        windowEndOffset: globalPlotContext.windowEndSec,
+        axisSource: globalPlotContext.source
       };
     }
 
-    const windowStats = computeStats(plotWindow.samples);
+    const windowStats = computeStats(plotSamples);
     const displayName = stream.displayName || stream.code;
     const color = stream.color;
     const plusStd = windowStats.avg + windowStats.std;
@@ -1950,16 +1972,16 @@
           cubicInterpolationMode: "monotone",
           spanGaps: true,
           streamCode: stream.code,
-          axisSource: plotWindow.source
+          axisSource: globalPlotContext.source
         },
-        makeHorizontalDataset(`${displayName} max ${windowStats.max.toFixed(2)}`, windowStats.max, color, [3, 7], 2.5),
-        makeHorizontalDataset(`${displayName} +STD ${plusStd.toFixed(2)}`, plusStd, color, [13, 8], 2.2),
-        makeHorizontalDataset(`${displayName} -STD ${minusStd.toFixed(2)}`, minusStd, color, [13, 8], 2.2)
+        makeHorizontalDataset(`${displayName} max ${windowStats.max.toFixed(2)}`, windowStats.max, color, [3, 7], 2.5, stream.code, globalPlotContext.source),
+        makeHorizontalDataset(`${displayName} +STD ${plusStd.toFixed(2)}`, plusStd, color, [13, 8], 2.2, stream.code, globalPlotContext.source),
+        makeHorizontalDataset(`${displayName} -STD ${minusStd.toFixed(2)}`, minusStd, color, [13, 8], 2.2, stream.code, globalPlotContext.source)
       ],
       plottedCount: points.length,
-      windowStartOffset: plotWindow.windowStartSec,
-      windowEndOffset: plotWindow.windowEndSec,
-      axisSource: plotWindow.source
+      windowStartOffset: globalPlotContext.windowStartSec,
+      windowEndOffset: globalPlotContext.windowEndSec,
+      axisSource: globalPlotContext.source
     };
   }
 
@@ -1973,14 +1995,14 @@
     }
 
     const visibleStreams = getFilteredSortedStreams();
+    const globalPlotContext = getGlobalPlotContext(visibleStreams);
     let datasets = [];
     let plottedCount = 0;
     let streamsWithPoints = 0;
-    let maxWindowEndOffset = 0;
     const axisSources = new Set();
 
     for (const stream of visibleStreams) {
-      const result = buildDatasetsForStream(stream);
+      const result = buildDatasetsForStream(stream, globalPlotContext);
 
       if (result.datasets.length > 0) {
         streamsWithPoints += 1;
@@ -1988,10 +2010,6 @@
 
       plottedCount += result.plottedCount;
       datasets = datasets.concat(result.datasets);
-
-      if (Number.isFinite(result.windowEndOffset)) {
-        maxWindowEndOffset = Math.max(maxWindowEndOffset, result.windowEndOffset);
-      }
 
       if (result.axisSource && result.axisSource !== "none") {
         axisSources.add(result.axisSource);
@@ -2007,9 +2025,14 @@
     if (datasets.length === 0) {
       plotWindowLabel.textContent = "Window: waiting for new samples after Start Plotting";
     } else {
-      const relativeMinute = Math.max(1, Math.ceil(Number(maxWindowEndOffset || 0) / 60));
+      const relativeMinute = Number.isFinite(globalPlotContext.windowEndSec)
+        ? Math.max(1, Math.ceil(Number(globalPlotContext.windowEndSec || 0) / 60))
+        : 1;
       const sourceText = [...axisSources].join(" + ") || "—";
-      plotWindowLabel.textContent = `Window: 0–60 s view · ${streamsWithPoints}/${visibleStreams.length} visible streams plotted · source: ${sourceText} · relative minute ${relativeMinute}`;
+      const missingText = streamsWithPoints < visibleStreams.length
+        ? ` · ${visibleStreams.length - streamsWithPoints} stream(s) waiting for samples in this global window`
+        : "";
+      plotWindowLabel.textContent = `Window: shared 0–60 s view · ${streamsWithPoints}/${visibleStreams.length} visible streams plotted together · source: ${sourceText} · relative minute ${relativeMinute}${missingText}`;
     }
   }
 
@@ -2282,7 +2305,7 @@
     plottedSamples.textContent = "0";
     plotWindowLabel.textContent = "Window: waiting for new samples after Start Plotting";
     updateTopStats();
-    showToast("Plotting armed. New samples are grouped by received streamCode and plotted by elapsedEndSec.");
+    showToast("Plotting armed. New samples are grouped by streamCode and plotted together in one shared global 0–60 s elapsedEndSec window.");
   }
 
   function pausePlotting() {
@@ -2350,7 +2373,7 @@
   });
 
   onValue(
-    streamsQuery,
+    streamsRef,
     snapshot => {
       connectionStatus.textContent = "Live";
 
