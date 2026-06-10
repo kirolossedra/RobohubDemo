@@ -1649,8 +1649,21 @@
         responsive: true,
         maintainAspectRatio: false,
         parsing: false,
-        animation: {
-          duration: 180
+        normalized: true,
+        animation: false,
+        animations: false,
+        transitions: {
+          active: { animation: { duration: 0 } },
+          resize: { animation: { duration: 0 } },
+          show: { animations: {} },
+          hide: { animations: {} }
+        },
+        elements: {
+          line: {
+            tension: 0,
+            cubicInterpolationMode: "monotone",
+            spanGaps: false
+          }
         },
         interaction: {
           mode: "nearest",
@@ -1725,7 +1738,7 @@
             },
             title: {
               display: true,
-              text: "Aligned time bucket (0–60 s)",
+              text: "Shared time window (0–60 s)",
               color: "rgba(226, 232, 240, 0.98)",
               font: {
                 size: 21,
@@ -1787,37 +1800,38 @@
 
   function getGlobalPlotContext(visibleStreams) {
     const eligibleByCode = new Map();
-    const allEligible = [];
 
     for (const stream of visibleStreams) {
-      const eligibleSamples = getEligibleSamplesForStream(stream);
-      eligibleByCode.set(stream.code, eligibleSamples);
-      allEligible.push(...eligibleSamples.map(sample => ({ ...sample, streamCode: stream.code })));
+      eligibleByCode.set(stream.code, getEligibleSamplesForStream(stream));
     }
 
-    if (allEligible.length === 0) {
-      return {
-        source: "none",
-        windowStartSec: null,
-        windowEndSec: null,
-        samplesByCode: new Map()
-      };
+    const elapsedByCode = new Map();
+    const elapsedLatestByCode = new Map();
+
+    for (const stream of visibleStreams) {
+      const elapsedSamples = (eligibleByCode.get(stream.code) || [])
+        .filter(sample => Number.isFinite(sample.elapsedEndSec))
+        .sort((a, b) => a.elapsedEndSec - b.elapsedEndSec || a.sentAt - b.sentAt);
+
+      if (elapsedSamples.length > 0) {
+        elapsedByCode.set(stream.code, elapsedSamples);
+        elapsedLatestByCode.set(stream.code, elapsedSamples[elapsedSamples.length - 1].elapsedEndSec);
+      }
     }
 
-    const elapsedSamples = allEligible
-      .filter(sample => Number.isFinite(sample.elapsedEndSec))
-      .sort((a, b) => a.elapsedEndSec - b.elapsedEndSec || a.sentAt - b.sentAt);
-
-    if (elapsedSamples.length > 0) {
-      const latestElapsed = elapsedSamples[elapsedSamples.length - 1].elapsedEndSec;
-      const minuteIndex = Math.max(0, Math.floor(Math.max(0, latestElapsed - 0.000001) / 60));
+    if (elapsedLatestByCode.size > 0) {
+      // Critical anti-dancing rule:
+      // Use the slowest stream's latest elapsedEndSec as the global window driver.
+      // If stream A reaches 61 s while stream B is still at 59.8 s, the chart stays
+      // in the 0–60 s window until both streams have crossed into the next minute.
+      const commonLatestElapsed = Math.min(...elapsedLatestByCode.values());
+      const minuteIndex = Math.max(0, Math.floor(Math.max(0, commonLatestElapsed - 0.000001) / 60));
       const windowStartSec = minuteIndex * 60;
       const windowEndSec = windowStartSec + 60;
       const samplesByCode = new Map();
 
       for (const stream of visibleStreams) {
-        const streamSamples = (eligibleByCode.get(stream.code) || [])
-          .filter(sample => Number.isFinite(sample.elapsedEndSec))
+        const streamSamples = (elapsedByCode.get(stream.code) || [])
           .filter(sample => {
             if (minuteIndex === 0) {
               return sample.elapsedEndSec >= 0 && sample.elapsedEndSec <= windowEndSec;
@@ -1835,40 +1849,77 @@
       }
 
       return {
-        source: "global_elapsedEndSec",
+        source: "global_common_elapsedEndSec",
         windowStartSec,
         windowEndSec,
-        samplesByCode
+        samplesByCode,
+        windowDriver: "slowest stream elapsedEndSec",
+        commonLatestValue: commonLatestElapsed,
+        participatingStreams: elapsedLatestByCode.size
       };
     }
 
-    const timestampSamples = allEligible
-      .filter(sample => Number.isFinite(sample.sentAt))
-      .sort((a, b) => a.sentAt - b.sentAt);
+    const timestampSamples = [];
+
+    for (const stream of visibleStreams) {
+      for (const sample of eligibleByCode.get(stream.code) || []) {
+        if (Number.isFinite(sample.sentAt)) {
+          timestampSamples.push({ ...sample, streamCode: stream.code });
+        }
+      }
+    }
 
     if (timestampSamples.length === 0) {
       return {
         source: "none",
         windowStartSec: null,
         windowEndSec: null,
-        samplesByCode: new Map()
+        samplesByCode: new Map(),
+        windowDriver: "none",
+        commonLatestValue: null,
+        participatingStreams: 0
       };
     }
 
-    const globalStartTimestamp = timestampSamples[0].sentAt;
-    const latestRelativeSec = Math.max(...timestampSamples.map(sample => Math.max(0, (sample.sentAt - globalStartTimestamp) / 1000.0)));
-    const minuteIndex = Math.max(0, Math.floor(Math.max(0, latestRelativeSec - 0.000001) / 60));
-    const windowStartSec = minuteIndex * 60;
-    const windowEndSec = windowStartSec + 60;
-    const samplesByCode = new Map();
+    const globalStartTimestamp = Math.min(...timestampSamples.map(sample => sample.sentAt));
+    const relativeByCode = new Map();
+    const latestRelativeByCode = new Map();
 
     for (const stream of visibleStreams) {
-      const streamSamples = (eligibleByCode.get(stream.code) || [])
+      const relativeSamples = (eligibleByCode.get(stream.code) || [])
         .filter(sample => Number.isFinite(sample.sentAt))
         .map(sample => ({
           ...sample,
           relativeSec: Math.max(0, (sample.sentAt - globalStartTimestamp) / 1000.0)
         }))
+        .sort((a, b) => a.relativeSec - b.relativeSec || a.sentAt - b.sentAt);
+
+      if (relativeSamples.length > 0) {
+        relativeByCode.set(stream.code, relativeSamples);
+        latestRelativeByCode.set(stream.code, relativeSamples[relativeSamples.length - 1].relativeSec);
+      }
+    }
+
+    if (latestRelativeByCode.size === 0) {
+      return {
+        source: "none",
+        windowStartSec: null,
+        windowEndSec: null,
+        samplesByCode: new Map(),
+        windowDriver: "none",
+        commonLatestValue: null,
+        participatingStreams: 0
+      };
+    }
+
+    const commonLatestRelativeSec = Math.min(...latestRelativeByCode.values());
+    const minuteIndex = Math.max(0, Math.floor(Math.max(0, commonLatestRelativeSec - 0.000001) / 60));
+    const windowStartSec = minuteIndex * 60;
+    const windowEndSec = windowStartSec + 60;
+    const samplesByCode = new Map();
+
+    for (const stream of visibleStreams) {
+      const streamSamples = (relativeByCode.get(stream.code) || [])
         .filter(sample => {
           if (minuteIndex === 0) {
             return sample.relativeSec >= 0 && sample.relativeSec <= windowEndSec;
@@ -1886,15 +1937,19 @@
     }
 
     return {
-      source: "global_timestamp_fallback",
+      source: "global_common_timestamp_fallback",
       windowStartSec,
       windowEndSec,
-      samplesByCode
+      samplesByCode,
+      windowDriver: "slowest stream timestamp",
+      commonLatestValue: commonLatestRelativeSec,
+      participatingStreams: latestRelativeByCode.size
     };
   }
 
-  function makeHorizontalDataset(label, yValue, color, dash, width = 2, streamCode = "", axisSource = "") {
+  function makeHorizontalDataset(datasetId, label, yValue, color, dash, width = 2, streamCode = "", axisSource = "", lineRole = "reference") {
     return {
+      datasetId,
       label,
       data: [
         { x: 0, y: yValue },
@@ -1909,14 +1964,16 @@
       pointHitRadius: 0,
       fill: false,
       tension: 0,
-      spanGaps: true,
+      spanGaps: false,
       streamCode,
-      axisSource
+      axisSource,
+      lineRole
     };
   }
 
   function buildDatasetsForStream(stream, globalPlotContext) {
     const plotSamples = globalPlotContext.samplesByCode.get(stream.code) || [];
+    const streamKey = encodeFirebaseKey(stream.code);
 
     if (plotSamples.length === 0) {
       return {
@@ -1959,6 +2016,7 @@
     return {
       datasets: [
         {
+          datasetId: `${streamKey}::throughput`,
           label: `${displayName} throughput`,
           data: points,
           borderColor: color,
@@ -1968,21 +2026,58 @@
           pointHoverRadius: 6.2,
           pointHitRadius: 14,
           fill: false,
-          tension: 0.40,
+          tension: 0,
           cubicInterpolationMode: "monotone",
-          spanGaps: true,
+          spanGaps: false,
           streamCode: stream.code,
-          axisSource: globalPlotContext.source
+          axisSource: globalPlotContext.source,
+          lineRole: "throughput"
         },
-        makeHorizontalDataset(`${displayName} max ${windowStats.max.toFixed(2)}`, windowStats.max, color, [3, 7], 2.5, stream.code, globalPlotContext.source),
-        makeHorizontalDataset(`${displayName} +STD ${plusStd.toFixed(2)}`, plusStd, color, [13, 8], 2.2, stream.code, globalPlotContext.source),
-        makeHorizontalDataset(`${displayName} -STD ${minusStd.toFixed(2)}`, minusStd, color, [13, 8], 2.2, stream.code, globalPlotContext.source)
+        makeHorizontalDataset(`${streamKey}::max`, `${displayName} max`, windowStats.max, color, [3, 7], 2.5, stream.code, globalPlotContext.source, "max"),
+        makeHorizontalDataset(`${streamKey}::plusStd`, `${displayName} +STD`, plusStd, color, [13, 8], 2.2, stream.code, globalPlotContext.source, "+STD"),
+        makeHorizontalDataset(`${streamKey}::minusStd`, `${displayName} -STD`, minusStd, color, [13, 8], 2.2, stream.code, globalPlotContext.source, "-STD")
       ],
       plottedCount: points.length,
       windowStartOffset: globalPlotContext.windowStartSec,
       windowEndOffset: globalPlotContext.windowEndSec,
       axisSource: globalPlotContext.source
     };
+  }
+
+  function syncChartDatasets(desiredDatasets) {
+    const existingById = new Map();
+
+    for (const dataset of combinedChart.data.datasets) {
+      const datasetId = dataset.datasetId || dataset.label;
+      existingById.set(datasetId, dataset);
+    }
+
+    const nextDatasets = [];
+
+    for (const desired of desiredDatasets) {
+      const datasetId = desired.datasetId || desired.label;
+      const existing = existingById.get(datasetId);
+
+      if (existing) {
+        const nextData = Array.isArray(desired.data) ? desired.data : [];
+
+        existing.data.length = 0;
+        existing.data.push(...nextData);
+
+        for (const [key, value] of Object.entries(desired)) {
+          if (key !== "data") {
+            existing[key] = value;
+          }
+        }
+
+        nextDatasets.push(existing);
+      } else {
+        nextDatasets.push(desired);
+      }
+    }
+
+    combinedChart.data.datasets.length = 0;
+    combinedChart.data.datasets.push(...nextDatasets);
   }
 
   function updateCombinedChart(force = false) {
@@ -1996,7 +2091,7 @@
 
     const visibleStreams = getFilteredSortedStreams();
     const globalPlotContext = getGlobalPlotContext(visibleStreams);
-    let datasets = [];
+    const desiredDatasets = [];
     let plottedCount = 0;
     let streamsWithPoints = 0;
     const axisSources = new Set();
@@ -2009,20 +2104,23 @@
       }
 
       plottedCount += result.plottedCount;
-      datasets = datasets.concat(result.datasets);
+      desiredDatasets.push(...result.datasets);
 
       if (result.axisSource && result.axisSource !== "none") {
         axisSources.add(result.axisSource);
       }
     }
 
-    combinedChart.data.datasets = datasets;
+    // Do not replace the dataset array with a brand-new array on every Firebase tick.
+    // Patch existing dataset objects by stable datasetId so Chart.js does not treat
+    // each refresh as a fresh set of animated targets.
+    syncChartDatasets(desiredDatasets);
     combinedChart.update("none");
 
     lastPlottedCount = plottedCount;
     plottedSamples.textContent = String(lastPlottedCount);
 
-    if (datasets.length === 0) {
+    if (desiredDatasets.length === 0) {
       plotWindowLabel.textContent = "Window: waiting for new samples after Start Plotting";
     } else {
       const relativeMinute = Number.isFinite(globalPlotContext.windowEndSec)
@@ -2030,9 +2128,10 @@
         : 1;
       const sourceText = [...axisSources].join(" + ") || "—";
       const missingText = streamsWithPoints < visibleStreams.length
-        ? ` · ${visibleStreams.length - streamsWithPoints} stream(s) waiting for samples in this global window`
+        ? ` · ${visibleStreams.length - streamsWithPoints} stream(s) waiting for samples in this shared window`
         : "";
-      plotWindowLabel.textContent = `Window: shared 0–60 s view · ${streamsWithPoints}/${visibleStreams.length} visible streams plotted together · source: ${sourceText} · relative minute ${relativeMinute}${missingText}`;
+      const driverText = globalPlotContext.windowDriver ? ` · driver: ${globalPlotContext.windowDriver}` : "";
+      plotWindowLabel.textContent = `Window: shared 0–60 s view · ${streamsWithPoints}/${visibleStreams.length} visible streams plotted together · source: ${sourceText} · relative minute ${relativeMinute}${driverText}${missingText}`;
     }
   }
 
