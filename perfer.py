@@ -1,11 +1,13 @@
-# iperfer_client_agent_infinite.py
+# iperfer_client_agent_downlink_infinite.py
 #
-# Client-side iperfer agent with finite/infinite duration support and proper POST timestamps.
+# Client-side DOWNLINK iperfer agent with finite/infinite duration support and proper POST timestamps.
 #
 # Architecture:
 # - Sending interface: used for Firebase POST telemetry. It must have internet access.
 # - Probing interface: used by iperf3 with -B. It can be Wi-Fi, 5G, Ethernet, USB, etc.
-# - Target IP: actual iperf3 destination.
+# - Target IP: actual iperf3 server destination.
+# - Downlink mode is implemented using iperf3 reverse mode (-R):
+#     the iperf3 server sends traffic down to this client.
 # - The website/dashboard receives Firebase records under iperf3_streams and plots by streamCode/interfaceName.
 #
 # Firebase REST endpoint:
@@ -15,7 +17,7 @@
 #   pip install psutil requests
 #
 # Run:
-#   python iperfer_client_agent_infinite.py
+#   python iperfer_client_agent_downlink_infinite.py
 
 import csv
 import os
@@ -60,6 +62,8 @@ DEFAULT_INTERVAL_SECONDS = 1.0
 DEFAULT_PARALLEL_STREAMS = 1
 DEFAULT_PROTOCOL = "TCP"
 DEFAULT_UDP_BANDWIDTH = "10M"
+DEFAULT_TEST_DIRECTION = "DOWNLINK"
+DEFAULT_IPERF_REVERSE_MODE = True
 
 LOG_DIR = "iperfer_client_logs"
 
@@ -118,6 +122,8 @@ class RuntimeConfig:
     parallel_streams: int
     protocol: str
     udp_bandwidth: str
+    test_direction: str
+    reverse_mode: bool
 
 
 class RunningStats:
@@ -380,7 +386,7 @@ def make_bound_session(source_ip: str) -> requests.Session:
 class IperferClientAgentApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Iperfer Client Agent - Infinite Duration Supported")
+        self.root.title("Iperfer Client Agent - DOWNLINK / Reverse Mode")
         self.root.geometry("1320x900")
         self.root.minsize(1160, 790)
 
@@ -444,7 +450,7 @@ class IperferClientAgentApp:
 
         ttk.Label(
             header,
-            text="Iperfer Client Agent",
+            text="Iperfer Client Agent - DOWNLINK",
             style="Title.TLabel"
         ).pack(side=tk.LEFT)
 
@@ -467,7 +473,7 @@ class IperferClientAgentApp:
         panel.pack(fill=tk.X, pady=(12, 8))
 
         self.firebase_url_var = tk.StringVar(value=FIREBASE_POST_URL)
-        self.stream_code_var = tk.StringVar(value="wifi_probe_stream")
+        self.stream_code_var = tk.StringVar(value="wifi_downlink_stream")
 
         self.sending_interface_var = tk.StringVar()
         self.probing_interface_var = tk.StringVar()
@@ -551,7 +557,7 @@ class IperferClientAgentApp:
 
         row += 1
 
-        ttk.Label(panel, text="Target IP").grid(row=row, column=0, sticky=tk.W, padx=4, pady=5)
+        ttk.Label(panel, text="Target iperf3 Server IP").grid(row=row, column=0, sticky=tk.W, padx=4, pady=5)
         ttk.Entry(panel, textvariable=self.target_ip_var, width=18).grid(row=row, column=1, sticky=tk.W, padx=4, pady=5)
 
         ttk.Label(panel, text="Target Port").grid(row=row, column=2, sticky=tk.W, padx=4, pady=5)
@@ -579,7 +585,7 @@ class IperferClientAgentApp:
 
         ttk.Label(
             panel,
-            text="Infinite mode uses iperf3 -t 0 and keeps POSTing parsed samples.",
+            text="Downlink mode uses iperf3 -R. Infinite mode uses -t 0 and keeps POSTing parsed samples.",
             style="Status.TLabel"
         ).grid(row=row, column=5, columnspan=3, sticky=tk.W, padx=4, pady=5)
 
@@ -623,7 +629,7 @@ class IperferClientAgentApp:
     def _build_metrics_panel(self, outer):
         panel = ttk.LabelFrame(
             outer,
-            text="Live Agent Metrics",
+            text="Live Downlink Agent Metrics",
             padding=10,
             style="Section.TLabelframe"
         )
@@ -684,7 +690,7 @@ class IperferClientAgentApp:
     def _build_command_panel(self, outer):
         panel = ttk.LabelFrame(
             outer,
-            text="Generated iperf3 Command",
+            text="Generated iperf3 Downlink Command",
             padding=10,
             style="Section.TLabelframe"
         )
@@ -702,7 +708,7 @@ class IperferClientAgentApp:
     def _build_output_panel(self, outer):
         panel = ttk.LabelFrame(
             outer,
-            text="Raw iperf3 / POST Log",
+            text="Raw Downlink iperf3 / POST Log",
             padding=10,
             style="Section.TLabelframe"
         )
@@ -833,7 +839,9 @@ class IperferClientAgentApp:
             interval_sec=interval_sec,
             parallel_streams=parallel_streams,
             protocol=protocol,
-            udp_bandwidth=udp_bandwidth
+            udp_bandwidth=udp_bandwidth,
+            test_direction=DEFAULT_TEST_DIRECTION,
+            reverse_mode=DEFAULT_IPERF_REVERSE_MODE
         )
 
     def _build_iperf_command(self, config: RuntimeConfig):
@@ -844,7 +852,8 @@ class IperferClientAgentApp:
             "-i", str(config.interval_sec),
             "-f", "m",
             "-B", config.probing_interface_ip,
-            "-P", str(config.parallel_streams)
+            "-P", str(config.parallel_streams),
+            "-R"
         ]
 
         if config.infinite_duration:
@@ -872,6 +881,11 @@ class IperferClientAgentApp:
         return {
             "Content-Type": "application/json",
 
+            # Direction traceability:
+            "X-Iperfer-Direction": config.test_direction.lower(),
+            "X-Iperfer-Reverse-Mode": str(config.reverse_mode).lower(),
+            "X-Iperfer-Traffic-Path": "server_to_client",
+
             # Requested interface header:
             "X-Interface-Name": config.probing_interface_name,
 
@@ -888,6 +902,7 @@ class IperferClientAgentApp:
             "X-Iperfer-Target-IP": config.target_ip,
             "X-Iperfer-Target-Port": str(config.target_port),
             "X-Iperfer-Duration-Mode": duration_mode,
+            "X-Iperfer-Mode": "downlink_reverse",
             "X-Iperfer-Throughput-Mbps": f"{sample.throughput_mbps:.6f}",
             "X-Iperfer-Sample-Index": str(sample.sample_index),
         }
@@ -952,6 +967,12 @@ class IperferClientAgentApp:
             "targetIp": config.target_ip,
             "targetPort": config.target_port,
             "protocol": config.protocol,
+            "direction": config.test_direction.lower(),
+            "iperfMode": "downlink_reverse",
+            "reverseMode": config.reverse_mode,
+            "trafficDirection": "server_to_client",
+            "downlinkServerIp": config.target_ip,
+            "downlinkClientIp": config.probing_interface_ip,
 
             # Duration:
             "durationMode": duration_mode,
@@ -1136,7 +1157,8 @@ class IperferClientAgentApp:
         )
 
         self.probe_route_var.set(
-            f"Probing interface: {config.probing_interface_name} | {config.probing_interface_ip} → {config.target_ip}:{config.target_port}"
+            f"Downlink probe: {config.target_ip}:{config.target_port} → "
+            f"{config.probing_interface_name} | {config.probing_interface_ip}"
         )
 
         self._append_log("Starting iperfer client agent...\n")
@@ -1144,7 +1166,8 @@ class IperferClientAgentApp:
         self._append_log(f"Stream code: {config.stream_code}\n")
         self._append_log(f"Duration mode: {duration_text}\n")
         self._append_log(f"POST interface: {config.sending_interface_name} | {config.sending_interface_ip}\n")
-        self._append_log(f"Probe interface: {config.probing_interface_name} | {config.probing_interface_ip}\n")
+        self._append_log(f"Downlink probe interface: {config.probing_interface_name} | {config.probing_interface_ip}\n")
+        self._append_log(f"Traffic direction: {config.target_ip}:{config.target_port} -> {config.probing_interface_ip} using iperf3 -R\n")
         self._append_log(f"iperf3 command: {' '.join(command)}\n\n")
 
         try:
@@ -1340,6 +1363,9 @@ class IperferClientAgentApp:
             "target_ip",
             "target_port",
             "protocol",
+            "test_direction",
+            "reverse_mode",
+            "traffic_direction",
             "firebase_url",
             "post_status",
             "post_response",
@@ -1392,6 +1418,9 @@ class IperferClientAgentApp:
             config.target_ip,
             config.target_port,
             config.protocol,
+            config.test_direction.lower(),
+            config.reverse_mode,
+            "server_to_client",
             config.firebase_url,
             post_status,
             post_response,
