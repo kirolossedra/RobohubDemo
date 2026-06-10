@@ -581,6 +581,114 @@
     to { transform: translateY(0); opacity: 1; }
   }
 
+
+
+  .diagnostics-panel {
+    margin-top: 20px;
+  }
+
+  .diagnostics-grid {
+    padding: 16px;
+    display: grid;
+    grid-template-columns: minmax(280px, 0.9fr) minmax(360px, 1.1fr) minmax(420px, 1.4fr);
+    gap: 14px;
+  }
+
+  .diagnostic-card {
+    border: 1px solid rgba(148, 163, 184, 0.20);
+    border-radius: 18px;
+    background: rgba(2, 6, 23, 0.42);
+    padding: 14px;
+    min-width: 0;
+  }
+
+  .diagnostic-title {
+    margin: 0 0 10px;
+    font-size: 17px;
+    font-weight: 1000;
+    color: var(--text-main);
+  }
+
+  .diagnostic-small {
+    color: var(--text-muted);
+    font-size: 12.5px;
+    font-weight: 780;
+    line-height: 1.55;
+  }
+
+  .diagnostic-list {
+    display: grid;
+    gap: 9px;
+  }
+
+  .diagnostic-item {
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    border-radius: 14px;
+    background: rgba(15, 23, 42, 0.54);
+    padding: 10px;
+  }
+
+  .diagnostic-key {
+    color: #bae6fd;
+    font-size: 13px;
+    font-weight: 1000;
+    overflow-wrap: anywhere;
+  }
+
+  .diagnostic-value {
+    margin-top: 5px;
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+
+  .diagnostic-table-wrap {
+    overflow-x: auto;
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    border-radius: 14px;
+  }
+
+  .diagnostic-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 760px;
+    font-size: 12.5px;
+    font-weight: 820;
+  }
+
+  .diagnostic-table th,
+  .diagnostic-table td {
+    padding: 9px 10px;
+    text-align: left;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+    vertical-align: top;
+  }
+
+  .diagnostic-table th {
+    color: #dbeafe;
+    background: rgba(15, 23, 42, 0.72);
+    font-weight: 1000;
+    white-space: nowrap;
+  }
+
+  .diagnostic-table td {
+    color: var(--text-soft);
+    overflow-wrap: anywhere;
+  }
+
+  .diagnostic-pre {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: #bae6fd;
+    font-family: Consolas, Monaco, "Courier New", monospace;
+    font-size: 12.5px;
+    font-weight: 800;
+    line-height: 1.55;
+  }
+
   .footer-note {
     margin: 18px 4px 0;
     color: var(--text-muted);
@@ -655,6 +763,10 @@
       grid-template-columns: 1fr;
     }
 
+    .diagnostics-grid {
+      grid-template-columns: 1fr;
+    }
+
     .name-editor {
       grid-template-columns: 1fr 54px;
     }
@@ -682,7 +794,7 @@
 
         <p class="hero-copy">
           This dashboard keeps listening to <strong>iperf3_streams</strong>, but the plot stays frozen until you explicitly press
-          <strong>Start Plotting</strong>. All streams are drawn together on one shared 0–60 second axis. Each stream is aligned to universal second buckets by nearest timestamp proximity, with per-stream max and ±STD guide lines.
+          <strong>Start Plotting</strong>. All streams are drawn together on one shared 0–60 second axis. The dashboard now groups strictly by the received streamCode, extracts the new timestamp fields from each POST, and shows those decisions in the diagnostics panel.
         </p>
       </div>
 
@@ -695,9 +807,12 @@
   "streamCode": "wifi_client_1",
   "interfaceName": "Wi-Fi",
   "throughputMbps": 72.4,
-  "sentAt": {
-    ".sv": "timestamp"
-  }
+  "sentAt": 1780000000000,
+  "sampleTimestampMs": 1780000000000,
+  "intervalStartAtMs": 1779999999000,
+  "intervalEndAtMs": 1780000000000,
+  "elapsedStartSec": 0.0,
+  "elapsedEndSec": 1.0
 }</pre>
       </div>
     </div>
@@ -769,7 +884,7 @@
       <div>
         <h2 class="plot-title">Combined Throughput Plot</h2>
         <p class="plot-subtitle">
-          X-axis is numeric seconds from <strong>0 to 60</strong>. Every stream is mapped into this universal axis using nearest-timestamp alignment, so small timing offsets do not hide a stream.
+          X-axis is numeric seconds from <strong>0 to 60</strong>. The primary x value is <strong>elapsedEndSec</strong> from iperf; timestamp fields are extracted for diagnostics and fallback ordering.
         </p>
       </div>
       <div class="plot-subtitle" id="plotWindowLabel">Window: —</div>
@@ -780,7 +895,7 @@
     </div>
 
     <div class="plot-legend-note">
-      Solid line = aligned throughput. Short dashed line = per-stream max. Long dashed lines = average + STD and average − STD for that stream.
+      Solid line = throughput by elapsedEndSec. Short dashed line = per-stream max. Long dashed lines = average + STD and average − STD for that stream.
     </div>
   </section>
 
@@ -800,6 +915,51 @@
         <p>No throughput samples have been received under <strong>iperf3_streams</strong> yet.</p>
       </section>
     </main>
+  </section>
+
+
+  <section class="streams-panel diagnostics-panel">
+    <div class="panel-header">
+      <div>
+        <h2 class="panel-title">Diagnostics</h2>
+        <p class="panel-subtitle">
+          This section shows the exact stream codes and timestamp fields received from Firebase. It is here to catch stream merging immediately.
+        </p>
+      </div>
+    </div>
+
+    <div class="diagnostics-grid">
+      <div class="diagnostic-card">
+        <h3 class="diagnostic-title">Received stream codes</h3>
+        <div id="diagnosticSummary" class="diagnostic-small">Waiting for samples.</div>
+        <div id="streamCodeDiagnostics" class="diagnostic-list" style="margin-top: 12px;"></div>
+      </div>
+
+      <div class="diagnostic-card">
+        <h3 class="diagnostic-title">Timestamp extraction</h3>
+        <div id="timestampDiagnostics" class="diagnostic-list"></div>
+      </div>
+
+      <div class="diagnostic-card">
+        <h3 class="diagnostic-title">Latest normalized records</h3>
+        <div class="diagnostic-table-wrap">
+          <table class="diagnostic-table">
+            <thead>
+              <tr>
+                <th>Stream code</th>
+                <th>Throughput</th>
+                <th>elapsedEndSec</th>
+                <th>sentAt/source</th>
+                <th>Firebase key</th>
+              </tr>
+            </thead>
+            <tbody id="latestSampleDiagnostics">
+              <tr><td colspan="5">Waiting for samples.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
   </section>
 
   <p class="footer-note">
@@ -887,6 +1047,10 @@
   const resumePlotButton = document.getElementById("resumePlotButton");
   const stopPlotButton = document.getElementById("stopPlotButton");
   const toast = document.getElementById("toast");
+  const diagnosticSummary = document.getElementById("diagnosticSummary");
+  const streamCodeDiagnostics = document.getElementById("streamCodeDiagnostics");
+  const timestampDiagnostics = document.getElementById("timestampDiagnostics");
+  const latestSampleDiagnostics = document.getElementById("latestSampleDiagnostics");
 
   let allSamples = [];
   let streams = new Map();
@@ -1074,12 +1238,8 @@
     return cleanParts.join(" | ");
   }
 
-  function resolveStreamIdentity(key, value) {
-    // IMPORTANT:
-    // Do not use sendingInterface before probingInterface.
-    // The sending interface can be the same internet adapter for multiple streams,
-    // which merges different probes into one plotted curve.
-    const explicitStreamCode = firstNonEmpty(
+  function getExplicitStreamCode(value) {
+    return firstNonEmpty(
       value?.streamCode,
       value?.stream_code,
       value?.streamId,
@@ -1093,57 +1253,79 @@
       value?.interface_code,
       value?.probeCode,
       value?.probe_code,
-      getHeaderValue(value, "streamCode", "stream-code", "x-stream-code", "interfaceCode", "interface-code", "x-interface-code")
+      getHeaderValue(value, "streamCode", "stream-code", "x-stream-code", "interfaceCode", "interface-code", "x-interface-code", "x-iperfer-stream-code")
     );
+  }
+
+  function resolveStreamIdentity(key, value) {
+    // Critical rule: grouping is by the streamCode actually received from the POST body.
+    // Do not group by sendingInterface, interfaceName, iface, or probingInterface here;
+    // those can be shared or ambiguous and can merge two streams into one curve.
+    const explicitStreamCode = getExplicitStreamCode(value);
 
     if (explicitStreamCode) {
       return {
         code: String(explicitStreamCode).trim(),
-        source: "explicit_stream_code"
+        source: "streamCode/interfaceCode payload field"
       };
     }
 
-    // If the sender does not provide streamCode, the measured/probing interface is the next-safe identity.
-    // This prevents two probes from being collapsed just because they share the same sending interface.
-    const probingIdentity = firstNonEmpty(
-      value?.probingInterface,
-      value?.probing_interface,
-      value?.probeInterface,
-      value?.probe_interface,
-      value?.measuredInterface,
-      value?.measured_interface,
-      value?.testInterface,
-      value?.test_interface,
-      getHeaderValue(value, "probingInterface", "probing-interface", "x-probing-interface", "measuredInterface", "measured-interface", "x-measured-interface")
-    );
-
-    if (probingIdentity) {
-      return {
-        code: String(probingIdentity).trim(),
-        source: "probing_interface"
-      };
-    }
-
-    const compositeIdentity = makeCompositeIdentity([
-      ["interface", firstNonEmpty(value?.interfaceName, value?.interface_name, value?.interface, value?.ifaceName, value?.iface, getHeaderValue(value, "interfaceName", "interface-name", "x-interface-name"))],
-      ["client", firstNonEmpty(value?.clientId, value?.client_id, value?.clientName, value?.client_name, value?.deviceId, value?.device_id, value?.deviceName, value?.device_name, value?.host, value?.hostname, value?.hostName)],
-      ["target", firstNonEmpty(value?.targetIp, value?.target_ip, value?.ipAddress, value?.ip_address, value?.serverIp, value?.server_ip, value?.server, value?.destination)],
-      ["port", firstNonEmpty(value?.port, value?.serverPort, value?.server_port, value?.iperfPort, value?.iperf_port)],
-      ["sender", firstNonEmpty(value?.sendingInterface, value?.sending_interface, value?.sendInterface, value?.send_interface)]
-    ]);
-
-    if (compositeIdentity) {
-      return {
-        code: compositeIdentity,
-        source: "composite_identity"
-      };
-    }
-
-    // Last-resort safety: never collapse unrelated samples into a single unknown_stream.
-    // If there is truly no identity field, keep the record isolated instead of silently merging it.
+    // Last-resort safety: if the POST has no stream code, keep the record isolated.
+    // This avoids silently merging unrelated samples into an unknown stream.
     return {
-      code: `record:${key}`,
-      source: "firebase_record_key"
+      code: `missing_streamCode:${key}`,
+      source: "missing streamCode - isolated by Firebase key"
+    };
+  }
+
+  function parseFiniteNumber(value) {
+    const numberValue = Number(value);
+    return Number.isFinite(numberValue) ? numberValue : null;
+  }
+
+  function parseTimestampCandidate(value) {
+    const raw = Number(value);
+
+    if (!Number.isFinite(raw) || raw <= 0) {
+      return null;
+    }
+
+    // Accept both Unix seconds and JavaScript/Firebase milliseconds.
+    if (raw < 10_000_000_000) {
+      return Math.round(raw * 1000);
+    }
+
+    return Math.round(raw);
+  }
+
+  function extractTimestamp(value) {
+    const candidates = [
+      ["sampleTimestampMs", value?.sampleTimestampMs],
+      ["sentAt", value?.sentAt],
+      ["intervalEndAtMs", value?.intervalEndAtMs],
+      ["timestamp", value?.timestamp],
+      ["parsedAtMs", value?.parsedAtMs],
+      ["createdAt", value?.createdAt],
+      ["clientPostedAtMs", value?.clientPostedAtMs],
+      ["firebaseServerReceivedAt", value?.firebaseServerReceivedAt]
+    ];
+
+    for (const [source, rawValue] of candidates) {
+      const timestampMs = parseTimestampCandidate(rawValue);
+
+      if (timestampMs !== null) {
+        return {
+          timestampMs,
+          source,
+          rawValue
+        };
+      }
+    }
+
+    return {
+      timestampMs: Date.now(),
+      source: "dashboard_fallback_Date.now",
+      rawValue: null
     };
   }
 
@@ -1151,6 +1333,7 @@
     const identity = resolveStreamIdentity(key, value);
 
     const interfaceName = firstNonEmpty(
+      value?.probingInterfaceName,
       value?.probingInterface,
       value?.probing_interface,
       value?.probeInterface,
@@ -1175,23 +1358,43 @@
       parseThroughput(value?.value) ??
       0;
 
-    const sentAt = normalizeTimestamp(
-      value?.sentAt ??
-      value?.sent_at ??
-      value?.timestamp ??
-      value?.createdAt ??
-      value?.created_at ??
-      Date.now()
-    );
+    const timestampInfo = extractTimestamp(value);
+    const intervalStartAtMs = parseTimestampCandidate(value?.intervalStartAtMs);
+    const intervalEndAtMs = parseTimestampCandidate(value?.intervalEndAtMs);
+    const sampleTimestampMs = parseTimestampCandidate(value?.sampleTimestampMs);
+    const parsedAtMs = parseTimestampCandidate(value?.parsedAtMs);
+    const firebaseServerReceivedAt = parseTimestampCandidate(value?.firebaseServerReceivedAt);
+    const clientPostedAtMs = parseTimestampCandidate(value?.clientPostedAtMs);
+    const elapsedStartSec = parseFiniteNumber(value?.elapsedStartSec ?? value?.elapsed_start_sec);
+    const elapsedEndSec = parseFiniteNumber(value?.elapsedEndSec ?? value?.elapsed_end_sec);
+    const sampleIndex = parseFiniteNumber(value?.sampleIndex ?? value?.sample_index);
 
     return {
       key,
       raw: value,
       streamCode: identity.code,
       streamIdentitySource: identity.source,
+      receivedStreamCode: getExplicitStreamCode(value),
+      interfaceCode: firstNonEmpty(value?.interfaceCode, value?.interface_code),
       interfaceName: String(interfaceName),
       throughputMbps,
-      sentAt
+      sentAt: timestampInfo.timestampMs,
+      timestampSource: timestampInfo.source,
+      timestampRawValue: timestampInfo.rawValue,
+      sampleTimestampMs,
+      intervalStartAtMs,
+      intervalEndAtMs,
+      parsedAtMs,
+      clientPostedAtMs,
+      firebaseServerReceivedAt,
+      elapsedStartSec,
+      elapsedEndSec,
+      sampleIndex,
+      sampleTimestampIsoUtc: value?.sampleTimestampIsoUtc ?? "",
+      intervalStartAtIsoUtc: value?.intervalStartAtIsoUtc ?? "",
+      intervalEndAtIsoUtc: value?.intervalEndAtIsoUtc ?? "",
+      parsedAtIsoUtc: value?.parsedAtIsoUtc ?? "",
+      rawIperfLine: value?.rawIperfLine ?? ""
     };
   }
 
@@ -1248,6 +1451,8 @@
         samples: trimmedSamples,
         allKeys: streamSamples.map(sample => sample.key),
         latestTimestamp: latest?.sentAt ?? 0,
+        latestSample: latest ?? null,
+        identitySource: latest?.streamIdentitySource ?? "—",
         stats
       });
     }
@@ -1312,6 +1517,93 @@
     plottedSamples.textContent = lastPlottedCount;
     lastUpdated.textContent = formatDashboardTime();
     updatePlotStateUi();
+  }
+
+
+  function formatIsoFromMs(timestampMs) {
+    if (!timestampMs) {
+      return "—";
+    }
+
+    const date = new Date(Number(timestampMs));
+
+    if (Number.isNaN(date.getTime())) {
+      return "—";
+    }
+
+    return date.toISOString();
+  }
+
+  function updateDiagnostics() {
+    if (!diagnosticSummary || !streamCodeDiagnostics || !timestampDiagnostics || !latestSampleDiagnostics) {
+      return;
+    }
+
+    if (allSamples.length === 0) {
+      diagnosticSummary.textContent = "Waiting for samples.";
+      streamCodeDiagnostics.innerHTML = "";
+      timestampDiagnostics.innerHTML = `<div class="diagnostic-item"><div class="diagnostic-key">No samples yet</div><div class="diagnostic-value">The page has not received Firebase records under ${DATABASE_BRANCH}.</div></div>`;
+      latestSampleDiagnostics.innerHTML = `<tr><td colspan="5">Waiting for samples.</td></tr>`;
+      return;
+    }
+
+    const streamListSorted = Array.from(streams.values()).sort((a, b) => a.code.localeCompare(b.code));
+    const uniqueRawCodes = new Set(allSamples.map(sample => String(sample.receivedStreamCode ?? "")).filter(Boolean));
+    const missingCodeCount = allSamples.filter(sample => !sample.receivedStreamCode).length;
+
+    diagnosticSummary.innerHTML = `
+      <strong>${streams.size}</strong> grouped stream(s) from <strong>${uniqueRawCodes.size}</strong> unique received streamCode value(s).<br>
+      Missing streamCode records: <strong>${missingCodeCount}</strong>.<br>
+      Grouping rule: <strong>streamCode/interfaceCode only</strong>; no grouping by interfaceName or sendingInterface.
+    `;
+
+    streamCodeDiagnostics.innerHTML = streamListSorted.map(stream => {
+      const latest = stream.latestSample;
+      return `
+        <div class="diagnostic-item">
+          <div class="diagnostic-key">${escapeHtml(stream.code)}</div>
+          <div class="diagnostic-value">
+            Display: <strong>${escapeHtml(stream.displayName)}</strong><br>
+            Identity source: ${escapeHtml(stream.identitySource)}<br>
+            Interface: ${escapeHtml(stream.interfaceName)}<br>
+            Samples: ${stream.stats.count} · Latest Mbps: ${stream.stats.current.toFixed(3)}<br>
+            Latest elapsedEndSec: ${latest?.elapsedEndSec ?? "—"} · Latest key: ${escapeHtml(latest?.key ?? "—")}
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    const latestSamples = [...allSamples].sort((a, b) => b.sentAt - a.sentAt).slice(0, 8);
+    const sourceCounts = new Map();
+
+    for (const sample of allSamples) {
+      sourceCounts.set(sample.timestampSource, (sourceCounts.get(sample.timestampSource) || 0) + 1);
+    }
+
+    timestampDiagnostics.innerHTML = `
+      <div class="diagnostic-item">
+        <div class="diagnostic-key">Timestamp priority used by dashboard</div>
+        <div class="diagnostic-value">sampleTimestampMs → sentAt → intervalEndAtMs → timestamp → parsedAtMs → createdAt → clientPostedAtMs → firebaseServerReceivedAt → Date.now fallback</div>
+      </div>
+      <div class="diagnostic-item">
+        <div class="diagnostic-key">Timestamp source counts</div>
+        <div class="diagnostic-value">${escapeHtml([...sourceCounts.entries()].map(([source, count]) => `${source}: ${count}`).join(" · "))}</div>
+      </div>
+      <div class="diagnostic-item">
+        <div class="diagnostic-key">Plot x-axis source</div>
+        <div class="diagnostic-value">Primary: elapsedEndSec from iperf interval. Fallback: extracted timestamp relative to that stream start.</div>
+      </div>
+    `;
+
+    latestSampleDiagnostics.innerHTML = latestSamples.map(sample => `
+      <tr>
+        <td>${escapeHtml(sample.streamCode)}</td>
+        <td>${sample.throughputMbps.toFixed(3)} Mbps</td>
+        <td>${sample.elapsedEndSec ?? "—"}</td>
+        <td>${escapeHtml(sample.timestampSource)}<br>${sample.sentAt}<br>${formatIsoFromMs(sample.sentAt)}</td>
+        <td>${escapeHtml(sample.key)}</td>
+      </tr>
+    `).join("");
   }
 
   function updatePlotStateUi() {
@@ -1405,7 +1697,8 @@
               },
               label: context => {
                 const value = Number(context.parsed?.y ?? 0);
-                return `${context.dataset.label}: ${value.toFixed(3)} Mbps`;
+                const streamCode = context.dataset.streamCode ? ` [${context.dataset.streamCode}]` : "";
+                return `${context.dataset.label}${streamCode}: ${value.toFixed(3)} Mbps`;
               }
             }
           }
@@ -1479,120 +1772,106 @@
     return !plotExcludedKeys.has(sample.key);
   }
 
-  function getAllEligiblePlotSamples() {
-    return allSamples
+  function getEligibleSamplesForStream(stream) {
+    return stream.samples
       .filter(sample => isPlotEligible(sample))
-      .sort((a, b) => a.sentAt - b.sentAt);
+      .sort((a, b) => {
+        const ax = Number.isFinite(a.elapsedEndSec) ? a.elapsedEndSec : Infinity;
+        const bx = Number.isFinite(b.elapsedEndSec) ? b.elapsedEndSec : Infinity;
+
+        if (ax !== bx) {
+          return ax - bx;
+        }
+
+        return a.sentAt - b.sentAt;
+      });
   }
 
-  function refreshPlotStartTimestampFromEligibleSamples() {
-    if (plotStartTimestamp) {
-      return plotStartTimestamp;
+  function getElapsedWindowSamples(samples) {
+    const elapsedSamples = samples
+      .filter(sample => Number.isFinite(sample.elapsedEndSec))
+      .sort((a, b) => a.elapsedEndSec - b.elapsedEndSec);
+
+    if (elapsedSamples.length === 0) {
+      return null;
     }
 
-    const eligibleSamples = getAllEligiblePlotSamples();
+    const latestElapsed = elapsedSamples[elapsedSamples.length - 1].elapsedEndSec;
+    const minuteIndex = Math.max(0, Math.floor(Math.max(0, latestElapsed - 0.000001) / 60));
+    const windowStartSec = minuteIndex * 60;
+    const windowEndSec = windowStartSec + 60;
+
+    const windowSamples = elapsedSamples.filter(sample => {
+      const elapsed = sample.elapsedEndSec;
+      if (!Number.isFinite(elapsed)) {
+        return false;
+      }
+
+      if (minuteIndex === 0) {
+        return elapsed >= 0 && elapsed <= windowEndSec;
+      }
+
+      return elapsed > windowStartSec && elapsed <= windowEndSec;
+    });
+
+    return {
+      source: "elapsedEndSec",
+      windowStartSec,
+      windowEndSec,
+      samples: windowSamples.map(sample => ({
+        ...sample,
+        plotX: Math.max(0, Math.min(60, sample.elapsedEndSec - windowStartSec))
+      }))
+    };
+  }
+
+  function getTimestampFallbackWindowSamples(samples) {
+    const timestampSamples = samples
+      .filter(sample => Number.isFinite(sample.sentAt))
+      .sort((a, b) => a.sentAt - b.sentAt);
+
+    if (timestampSamples.length === 0) {
+      return null;
+    }
+
+    const streamStart = timestampSamples[0].sentAt;
+    const relativeSamples = timestampSamples.map(sample => ({
+      ...sample,
+      relativeSec: Math.max(0, (sample.sentAt - streamStart) / 1000.0)
+    }));
+
+    const latestRelativeSec = relativeSamples[relativeSamples.length - 1].relativeSec;
+    const minuteIndex = Math.max(0, Math.floor(Math.max(0, latestRelativeSec - 0.000001) / 60));
+    const windowStartSec = minuteIndex * 60;
+    const windowEndSec = windowStartSec + 60;
+
+    const windowSamples = relativeSamples.filter(sample => {
+      if (minuteIndex === 0) {
+        return sample.relativeSec >= 0 && sample.relativeSec <= windowEndSec;
+      }
+
+      return sample.relativeSec > windowStartSec && sample.relativeSec <= windowEndSec;
+    });
+
+    return {
+      source: "timestamp_fallback",
+      windowStartSec,
+      windowEndSec,
+      samples: windowSamples.map(sample => ({
+        ...sample,
+        plotX: Math.max(0, Math.min(60, sample.relativeSec - windowStartSec))
+      }))
+    };
+  }
+
+  function getPlotWindowSamples(stream) {
+    const eligibleSamples = getEligibleSamplesForStream(stream);
 
     if (eligibleSamples.length === 0) {
       return null;
     }
 
-    plotStartTimestamp = eligibleSamples[0].sentAt;
-    return plotStartTimestamp;
-  }
-
-  function getEligibleSamplesForStream(stream) {
-    return stream.samples
-      .filter(sample => isPlotEligible(sample))
-      .sort((a, b) => a.sentAt - b.sentAt);
-  }
-
-  function getRelativeSamplesForStream(stream) {
-    const eligibleSamples = getEligibleSamplesForStream(stream);
-
-    if (eligibleSamples.length === 0) {
-      return {
-        streamStart: null,
-        samples: []
-      };
-    }
-
-    const streamStart = eligibleSamples[0].sentAt;
-
-    return {
-      streamStart,
-      samples: eligibleSamples.map(sample => ({
-        ...sample,
-        relativeMs: Math.max(0, sample.sentAt - streamStart)
-      }))
-    };
-  }
-
-  function getLatestRelativeWindow(relativeSamples) {
-    if (relativeSamples.length === 0) {
-      return {
-        windowStartOffset: null,
-        windowEndOffset: null,
-        samples: []
-      };
-    }
-
-    const latestRelativeMs = relativeSamples[relativeSamples.length - 1].relativeMs;
-    const minuteIndex = Math.max(0, Math.floor(latestRelativeMs / PLOT_WINDOW_MS));
-    const windowStartOffset = minuteIndex * PLOT_WINDOW_MS;
-    const windowEndOffset = windowStartOffset + PLOT_WINDOW_MS;
-
-    const samplesNearWindow = relativeSamples.filter(sample => {
-      return (
-        sample.relativeMs >= windowStartOffset - PLOT_ALIGNMENT_TOLERANCE_MS &&
-        sample.relativeMs <= windowEndOffset + PLOT_ALIGNMENT_TOLERANCE_MS
-      );
-    });
-
-    return {
-      windowStartOffset,
-      windowEndOffset,
-      samples: samplesNearWindow
-    };
-  }
-
-  function alignSamplesToUniversalSecondAxis(relativeWindowSamples, windowStartOffset) {
-    const points = [];
-    const matchedSamples = [];
-    const usedKeys = new Set();
-
-    if (!Number.isFinite(windowStartOffset) || relativeWindowSamples.length === 0) {
-      return { points, matchedSamples };
-    }
-
-    for (let second = 0; second <= 60; second += 1) {
-      const targetRelativeMs = windowStartOffset + (second * 1000);
-      let bestSample = null;
-      let bestDistance = Infinity;
-
-      for (const sample of relativeWindowSamples) {
-        if (usedKeys.has(sample.key)) {
-          continue;
-        }
-
-        const distance = Math.abs(sample.relativeMs - targetRelativeMs);
-
-        if (distance < bestDistance) {
-          bestSample = sample;
-          bestDistance = distance;
-        }
-      }
-
-      if (bestSample && bestDistance <= PLOT_ALIGNMENT_TOLERANCE_MS) {
-        usedKeys.add(bestSample.key);
-        matchedSamples.push(bestSample);
-        points.push({
-          x: second,
-          y: bestSample.throughputMbps
-        });
-      }
-    }
-
-    return { points, matchedSamples };
+    return getElapsedWindowSamples(eligibleSamples) ?? getTimestampFallbackWindowSamples(eligibleSamples);
   }
 
   function makeHorizontalDataset(label, yValue, color, dash, width = 2) {
@@ -1616,43 +1895,40 @@
   }
 
   function buildDatasetsForStream(stream) {
-    const relative = getRelativeSamplesForStream(stream);
+    const plotWindow = getPlotWindowSamples(stream);
 
-    if (!relative.streamStart || relative.samples.length === 0) {
+    if (!plotWindow || plotWindow.samples.length === 0) {
       return {
         datasets: [],
         plottedCount: 0,
         windowStartOffset: null,
-        windowEndOffset: null
+        windowEndOffset: null,
+        axisSource: "none"
       };
     }
 
-    const relativeWindow = getLatestRelativeWindow(relative.samples);
+    const points = plotWindow.samples
+      .filter(sample => Number.isFinite(sample.plotX))
+      .sort((a, b) => a.plotX - b.plotX)
+      .map(sample => ({
+        x: sample.plotX,
+        y: sample.throughputMbps,
+        sampleKey: sample.key,
+        elapsedEndSec: sample.elapsedEndSec,
+        timestampMs: sample.sentAt
+      }));
 
-    if (!Number.isFinite(relativeWindow.windowStartOffset)) {
+    if (points.length === 0) {
       return {
         datasets: [],
         plottedCount: 0,
-        windowStartOffset: null,
-        windowEndOffset: null
+        windowStartOffset: plotWindow.windowStartSec,
+        windowEndOffset: plotWindow.windowEndSec,
+        axisSource: plotWindow.source
       };
     }
 
-    const aligned = alignSamplesToUniversalSecondAxis(
-      relativeWindow.samples,
-      relativeWindow.windowStartOffset
-    );
-
-    if (aligned.points.length === 0) {
-      return {
-        datasets: [],
-        plottedCount: 0,
-        windowStartOffset: relativeWindow.windowStartOffset,
-        windowEndOffset: relativeWindow.windowEndOffset
-      };
-    }
-
-    const windowStats = computeStats(aligned.matchedSamples);
+    const windowStats = computeStats(plotWindow.samples);
     const displayName = stream.displayName || stream.code;
     const color = stream.color;
     const plusStd = windowStats.avg + windowStats.std;
@@ -1662,7 +1938,7 @@
       datasets: [
         {
           label: `${displayName} throughput`,
-          data: aligned.points,
+          data: points,
           borderColor: color,
           backgroundColor: hexToRgba(color, 0.14),
           borderWidth: 4.4,
@@ -1672,15 +1948,18 @@
           fill: false,
           tension: 0.40,
           cubicInterpolationMode: "monotone",
-          spanGaps: true
+          spanGaps: true,
+          streamCode: stream.code,
+          axisSource: plotWindow.source
         },
         makeHorizontalDataset(`${displayName} max ${windowStats.max.toFixed(2)}`, windowStats.max, color, [3, 7], 2.5),
         makeHorizontalDataset(`${displayName} +STD ${plusStd.toFixed(2)}`, plusStd, color, [13, 8], 2.2),
         makeHorizontalDataset(`${displayName} -STD ${minusStd.toFixed(2)}`, minusStd, color, [13, 8], 2.2)
       ],
-      plottedCount: aligned.points.length,
-      windowStartOffset: relativeWindow.windowStartOffset,
-      windowEndOffset: relativeWindow.windowEndOffset
+      plottedCount: points.length,
+      windowStartOffset: plotWindow.windowStartSec,
+      windowEndOffset: plotWindow.windowEndSec,
+      axisSource: plotWindow.source
     };
   }
 
@@ -1700,6 +1979,7 @@
     let plottedCount = 0;
     let streamsWithPoints = 0;
     let maxWindowEndOffset = 0;
+    const axisSources = new Set();
 
     for (const stream of visibleStreams) {
       const result = buildDatasetsForStream(stream);
@@ -1714,6 +1994,10 @@
       if (Number.isFinite(result.windowEndOffset)) {
         maxWindowEndOffset = Math.max(maxWindowEndOffset, result.windowEndOffset);
       }
+
+      if (result.axisSource && result.axisSource !== "none") {
+        axisSources.add(result.axisSource);
+      }
     }
 
     combinedChart.data.datasets = datasets;
@@ -1723,10 +2007,11 @@
     plottedSamples.textContent = String(lastPlottedCount);
 
     if (datasets.length === 0) {
-      plotWindowLabel.textContent = "Window: waiting for new aligned samples after Start Plotting";
+      plotWindowLabel.textContent = "Window: waiting for new samples after Start Plotting";
     } else {
-      const relativeMinute = Math.max(1, Math.ceil(maxWindowEndOffset / PLOT_WINDOW_MS));
-      plotWindowLabel.textContent = `Window: aligned 0–60 s view · ${streamsWithPoints}/${visibleStreams.length} visible streams plotted · relative minute ${relativeMinute}`;
+      const relativeMinute = Math.max(1, Math.ceil(Number(maxWindowEndOffset || 0) / 60));
+      const sourceText = [...axisSources].join(" + ") || "—";
+      plotWindowLabel.textContent = `Window: 0–60 s view · ${streamsWithPoints}/${visibleStreams.length} visible streams plotted · source: ${sourceText} · relative minute ${relativeMinute}`;
     }
   }
 
@@ -1743,7 +2028,9 @@
           <span class="stream-code" title="${escapeHtml(stream.code)}">${escapeHtml(stream.displayName)}</span>
         </div>
         <div class="stream-interface">
-          Code: ${escapeHtml(stream.code)} · Interface: ${escapeHtml(stream.interfaceName)} · Latest: <span data-role="latest-time">${formatClock(stream.latestTimestamp)}</span>
+          Received streamCode: <strong>${escapeHtml(stream.code)}</strong><br>
+          Identity: ${escapeHtml(stream.identitySource)} · Interface: ${escapeHtml(stream.interfaceName)}<br>
+          Latest timestamp: <span data-role="latest-time">${formatClock(stream.latestTimestamp)}</span> · elapsedEndSec: <span data-role="latest-elapsed">${stream.latestSample?.elapsedEndSec ?? "—"}</span>
         </div>
       </div>
 
@@ -1823,6 +2110,7 @@
 
     const title = row.querySelector(".stream-code");
     const latestTime = row.querySelector('[data-role="latest-time"]');
+    const latestElapsed = row.querySelector('[data-role="latest-elapsed"]');
     const current = row.querySelector('[data-role="current"]');
     const avg = row.querySelector('[data-role="avg"]');
     const max = row.querySelector('[data-role="max"]');
@@ -1834,6 +2122,9 @@
     title.textContent = stream.displayName;
     title.title = stream.code;
     latestTime.textContent = formatClock(stream.latestTimestamp);
+    if (latestElapsed) {
+      latestElapsed.textContent = stream.latestSample?.elapsedEndSec ?? "—";
+    }
     current.textContent = stream.stats.current.toFixed(3);
     avg.textContent = stream.stats.avg.toFixed(3);
     max.textContent = stream.stats.max.toFixed(3);
@@ -1993,7 +2284,7 @@
     plottedSamples.textContent = "0";
     plotWindowLabel.textContent = "Window: waiting for new samples after Start Plotting";
     updateTopStats();
-    showToast("Plotting armed. New samples from every stream will be aligned by nearest timestamp and shown on the same chart.");
+    showToast("Plotting armed. New samples are grouped by received streamCode and plotted by elapsedEndSec.");
   }
 
   function pausePlotting() {
