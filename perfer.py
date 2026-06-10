@@ -1,6 +1,6 @@
 # iperfer_client_agent_infinite.py
 #
-# Client-side iperfer agent with finite/infinite duration support.
+# Client-side iperfer agent with finite/infinite duration support and proper POST timestamps.
 #
 # Architecture:
 # - Sending interface: used for Firebase POST telemetry. It must have internet access.
@@ -31,7 +31,7 @@ import threading
 import time
 import tkinter as tk
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from tkinter import messagebox, scrolledtext, ttk
 from typing import List, Optional
 
@@ -86,6 +86,17 @@ class IperfSample:
     throughput_mbps: float
     transfer_mbytes: float
     raw_line: str
+
+    # Filled after parsing, before POSTing.
+    # These make every Firebase record immediately sortable/plotable without relying
+    # only on Firebase server timestamp placeholders.
+    sample_index: int = 0
+    parsed_at_ms: int = 0
+    parsed_at_iso_utc: str = ""
+    interval_start_at_ms: int = 0
+    interval_start_at_iso_utc: str = ""
+    interval_end_at_ms: int = 0
+    interval_end_at_iso_utc: str = ""
 
 
 @dataclass
@@ -192,6 +203,22 @@ def validate_ipv4(ip_address: str, field_name: str) -> None:
 
     if ip_address.count(".") != 3:
         raise ValueError(f"{field_name} is invalid: {ip_address}")
+
+
+def current_epoch_ms() -> int:
+    return int(time.time() * 1000)
+
+
+def utc_iso_from_ms(epoch_ms: int) -> str:
+    return (
+        datetime.fromtimestamp(epoch_ms / 1000.0, tz=timezone.utc)
+        .isoformat(timespec="milliseconds")
+        .replace("+00:00", "Z")
+    )
+
+
+def local_iso_now() -> str:
+    return datetime.now().astimezone().isoformat(timespec="milliseconds")
 
 
 def discover_ipv4_interfaces(include_loopback: bool = False) -> List[InterfaceInfo]:
@@ -374,6 +401,8 @@ class IperferClientAgentApp:
         self.posted_count = 0
         self.failed_post_count = 0
         self.parsed_sample_count = 0
+        self.sample_sequence = 0
+        self.run_start_epoch_ms = None
         self.stats = RunningStats()
 
         self.csv_file = None
@@ -837,12 +866,18 @@ class IperferClientAgentApp:
 
     def _build_post_headers(self, sample: IperfSample, config: RuntimeConfig):
         duration_mode = "infinite" if config.infinite_duration else "finite"
+        sent_at_ms = sample.interval_end_at_ms or sample.parsed_at_ms or current_epoch_ms()
+        sent_at_iso = sample.interval_end_at_iso_utc or utc_iso_from_ms(sent_at_ms)
 
         return {
             "Content-Type": "application/json",
 
             # Requested interface header:
             "X-Interface-Name": config.probing_interface_name,
+
+            # Timestamp headers for request-level traceability:
+            "X-Iperfer-Sent-At-Ms": str(sent_at_ms),
+            "X-Iperfer-Sent-At-Iso-UTC": sent_at_iso,
 
             # Extra trace headers:
             "X-Iperfer-Stream-Code": config.stream_code,
@@ -854,18 +889,56 @@ class IperferClientAgentApp:
             "X-Iperfer-Target-Port": str(config.target_port),
             "X-Iperfer-Duration-Mode": duration_mode,
             "X-Iperfer-Throughput-Mbps": f"{sample.throughput_mbps:.6f}",
+            "X-Iperfer-Sample-Index": str(sample.sample_index),
         }
 
     def _build_post_payload(self, sample: IperfSample, config: RuntimeConfig):
-        now = datetime.now()
+        posted_at_ms = current_epoch_ms()
+        posted_at_iso_utc = utc_iso_from_ms(posted_at_ms)
         duration_mode = "infinite" if config.infinite_duration else "finite"
 
+        # The plot timestamp should represent the iperf interval end, not the later
+        # HTTP POST time. If a manually-created test sample has no interval stamp,
+        # fall back to the current POST time.
+        sample_timestamp_ms = sample.interval_end_at_ms or sample.parsed_at_ms or posted_at_ms
+        sample_timestamp_iso_utc = sample.interval_end_at_iso_utc or utc_iso_from_ms(sample_timestamp_ms)
+        interval_start_ms = sample.interval_start_at_ms or sample_timestamp_ms
+        interval_start_iso_utc = sample.interval_start_at_iso_utc or utc_iso_from_ms(interval_start_ms)
+        interval_end_ms = sample.interval_end_at_ms or sample_timestamp_ms
+        interval_end_iso_utc = sample.interval_end_at_iso_utc or utc_iso_from_ms(interval_end_ms)
+        parsed_at_ms = sample.parsed_at_ms or posted_at_ms
+        parsed_at_iso_utc = sample.parsed_at_iso_utc or utc_iso_from_ms(parsed_at_ms)
+
         return {
-            # Fields the website already expects:
+            # Fields the website already expects.
+            # sentAt is a real numeric epoch-ms timestamp so Chart.js/Firebase sorting
+            # works immediately and predictably.
             "streamCode": config.stream_code,
             "interfaceName": config.probing_interface_name,
             "throughputMbps": sample.throughput_mbps,
-            "sentAt": {
+            "sentAt": sample_timestamp_ms,
+
+            # Timestamp aliases for web parsing compatibility:
+            "timestamp": sample_timestamp_ms,
+            "createdAt": posted_at_ms,
+            "sampleTimestampMs": sample_timestamp_ms,
+            "sampleTimestampIsoUtc": sample_timestamp_iso_utc,
+
+            # Detailed timing model:
+            "intervalStartAtMs": interval_start_ms,
+            "intervalStartAtIsoUtc": interval_start_iso_utc,
+            "intervalEndAtMs": interval_end_ms,
+            "intervalEndAtIsoUtc": interval_end_iso_utc,
+            "parsedAtMs": parsed_at_ms,
+            "parsedAtIsoUtc": parsed_at_iso_utc,
+            "clientPostedAtMs": posted_at_ms,
+            "clientPostedAtIsoUtc": posted_at_iso_utc,
+            "clientPostedAtLocalIso": local_iso_now(),
+
+            # Optional Firebase server-side receive timestamp. The dashboard should
+            # still use sentAt/sampleTimestampMs for plotting because those are the
+            # actual measurement timestamps.
+            "firebaseServerReceivedAt": {
                 ".sv": "timestamp"
             },
 
@@ -886,6 +959,7 @@ class IperferClientAgentApp:
             "durationSec": config.duration_sec if config.duration_sec is not None else "infinite",
 
             # iperf interval:
+            "sampleIndex": sample.sample_index,
             "elapsedStartSec": sample.elapsed_start_sec,
             "elapsedEndSec": sample.elapsed_end_sec,
             "intervalDurationSec": sample.elapsed_end_sec - sample.elapsed_start_sec,
@@ -903,7 +977,7 @@ class IperferClientAgentApp:
             "clientHost": platform.node(),
             "clientSystem": platform.system(),
             "clientRelease": platform.release(),
-            "localCreatedAtIso": now.isoformat(timespec="milliseconds"),
+            "timestampUnit": "milliseconds_since_unix_epoch_utc",
 
             # Raw line for traceability:
             "rawIperfLine": sample.raw_line,
@@ -1042,6 +1116,7 @@ class IperferClientAgentApp:
         self.running = True
         self.stop_event.clear()
         self.start_time = time.time()
+        self.run_start_epoch_ms = current_epoch_ms()
 
         self.status_var.set("Running")
         self.status_label.configure(style="Good.TLabel")
@@ -1130,6 +1205,8 @@ class IperferClientAgentApp:
         self.posted_count = 0
         self.failed_post_count = 0
         self.parsed_sample_count = 0
+        self.sample_sequence = 0
+        self.run_start_epoch_ms = None
         self.stats.clear()
 
         self.latest_throughput_var.set("Latest: 0.000 Mbps")
@@ -1147,6 +1224,34 @@ class IperferClientAgentApp:
                 self.post_queue.get_nowait()
             except queue.Empty:
                 break
+
+    def _stamp_sample_timestamps(self, sample: IperfSample) -> IperfSample:
+        """
+        Attach absolute UTC timestamps to a parsed iperf interval.
+
+        iperf3 reports interval-relative times such as 3.00-4.00 sec.
+        The dashboard needs absolute timestamps, so we map those interval offsets
+        onto the wall-clock time captured when the run started.
+        """
+        self.sample_sequence += 1
+        parsed_at_ms = current_epoch_ms()
+
+        if self.run_start_epoch_ms is not None:
+            interval_start_ms = self.run_start_epoch_ms + int(round(sample.elapsed_start_sec * 1000.0))
+            interval_end_ms = self.run_start_epoch_ms + int(round(sample.elapsed_end_sec * 1000.0))
+        else:
+            interval_start_ms = parsed_at_ms
+            interval_end_ms = parsed_at_ms
+
+        sample.sample_index = self.sample_sequence
+        sample.parsed_at_ms = parsed_at_ms
+        sample.parsed_at_iso_utc = utc_iso_from_ms(parsed_at_ms)
+        sample.interval_start_at_ms = interval_start_ms
+        sample.interval_start_at_iso_utc = utc_iso_from_ms(interval_start_ms)
+        sample.interval_end_at_ms = interval_end_ms
+        sample.interval_end_at_iso_utc = utc_iso_from_ms(interval_end_ms)
+
+        return sample
 
     # =========================
     # iperf parser thread
@@ -1170,6 +1275,8 @@ class IperferClientAgentApp:
 
                 if sample is None:
                     continue
+
+                sample = self._stamp_sample_timestamps(sample)
 
                 self.gui_queue.put(("sample_parsed", sample))
                 self.post_queue.put(sample)
@@ -1210,6 +1317,15 @@ class IperferClientAgentApp:
             "transfer_mbytes",
             "elapsed_start_sec",
             "elapsed_end_sec",
+            "sample_index",
+            "sent_at_ms",
+            "sent_at_iso_utc",
+            "interval_start_at_ms",
+            "interval_start_at_iso_utc",
+            "interval_end_at_ms",
+            "interval_end_at_iso_utc",
+            "parsed_at_ms",
+            "parsed_at_iso_utc",
             "running_avg_mbps",
             "running_min_mbps",
             "running_max_mbps",
@@ -1253,6 +1369,15 @@ class IperferClientAgentApp:
             f"{sample.transfer_mbytes:.6f}",
             f"{sample.elapsed_start_sec:.3f}",
             f"{sample.elapsed_end_sec:.3f}",
+            sample.sample_index,
+            sample.interval_end_at_ms,
+            sample.interval_end_at_iso_utc,
+            sample.interval_start_at_ms,
+            sample.interval_start_at_iso_utc,
+            sample.interval_end_at_ms,
+            sample.interval_end_at_iso_utc,
+            sample.parsed_at_ms,
+            sample.parsed_at_iso_utc,
             f"{self.stats.average:.6f}",
             f"{self.stats.minimum:.6f}",
             f"{self.stats.maximum:.6f}",
