@@ -682,7 +682,7 @@
 
         <p class="hero-copy">
           This dashboard keeps listening to <strong>iperf3_streams</strong>, but the plot stays frozen until you explicitly press
-          <strong>Start Plotting</strong>. All streams are drawn together on one shared 0–60 second axis, with per-stream max and ±STD guide lines.
+          <strong>Start Plotting</strong>. All streams are drawn together on one shared 0–60 second axis. Each stream is aligned to universal second buckets by nearest timestamp proximity, with per-stream max and ±STD guide lines.
         </p>
       </div>
 
@@ -769,7 +769,7 @@
       <div>
         <h2 class="plot-title">Combined Throughput Plot</h2>
         <p class="plot-subtitle">
-          X-axis is numeric seconds from <strong>0 to 60</strong>. The visible window resets every minute from the plotting start timestamp.
+          X-axis is numeric seconds from <strong>0 to 60</strong>. Every stream is mapped into this universal axis using nearest-timestamp alignment, so small timing offsets do not hide a stream.
         </p>
       </div>
       <div class="plot-subtitle" id="plotWindowLabel">Window: —</div>
@@ -780,7 +780,7 @@
     </div>
 
     <div class="plot-legend-note">
-      Solid line = throughput. Short dashed line = per-stream max. Long dashed lines = average + STD and average − STD for that stream.
+      Solid line = aligned throughput. Short dashed line = per-stream max. Long dashed lines = average + STD and average − STD for that stream.
     </div>
   </section>
 
@@ -837,6 +837,7 @@
   const DATABASE_BRANCH = "iperf3_streams";
   const SETTINGS_BRANCH = "iperf3_stream_settings";
   const PLOT_WINDOW_MS = 60_000;
+  const PLOT_ALIGNMENT_TOLERANCE_MS = 1_800;
   const MAX_POINTS_PER_STREAM = 4000;
   const DEFAULT_COLORS = [
     "#38bdf8",
@@ -1327,7 +1328,7 @@
             },
             title: {
               display: true,
-              text: "Time since current plotting-minute start (0–60 s)",
+              text: "Aligned time bucket (0–60 s)",
               color: "rgba(226, 232, 240, 0.98)",
               font: {
                 size: 21,
@@ -1378,7 +1379,7 @@
       .sort((a, b) => a.sentAt - b.sentAt);
   }
 
-  function ensurePlotStartTimestamp() {
+  function refreshPlotStartTimestampFromEligibleSamples() {
     if (plotStartTimestamp) {
       return plotStartTimestamp;
     }
@@ -1393,53 +1394,99 @@
     return plotStartTimestamp;
   }
 
-  function getGlobalPlotWindow() {
-    const startTimestamp = ensurePlotStartTimestamp();
+  function getEligibleSamplesForStream(stream) {
+    return stream.samples
+      .filter(sample => isPlotEligible(sample))
+      .sort((a, b) => a.sentAt - b.sentAt);
+  }
 
-    if (!startTimestamp) {
-      return {
-        windowStart: null,
-        windowEnd: null,
-        samples: []
-      };
-    }
-
-    const eligibleSamples = getAllEligiblePlotSamples()
-      .filter(sample => sample.sentAt >= startTimestamp);
+  function getRelativeSamplesForStream(stream) {
+    const eligibleSamples = getEligibleSamplesForStream(stream);
 
     if (eligibleSamples.length === 0) {
       return {
-        windowStart: startTimestamp,
-        windowEnd: startTimestamp + PLOT_WINDOW_MS,
+        streamStart: null,
         samples: []
       };
     }
 
-    const latestTimestamp = eligibleSamples[eligibleSamples.length - 1].sentAt;
-    const minuteIndex = Math.max(0, Math.floor((latestTimestamp - startTimestamp) / PLOT_WINDOW_MS));
-    const windowStart = startTimestamp + (minuteIndex * PLOT_WINDOW_MS);
-    const windowEnd = windowStart + PLOT_WINDOW_MS;
-    const windowSamples = eligibleSamples.filter(sample => sample.sentAt >= windowStart && sample.sentAt < windowEnd);
+    const streamStart = eligibleSamples[0].sentAt;
 
     return {
-      windowStart,
-      windowEnd,
-      samples: windowSamples
+      streamStart,
+      samples: eligibleSamples.map(sample => ({
+        ...sample,
+        relativeMs: Math.max(0, sample.sentAt - streamStart)
+      }))
     };
   }
 
-  function getStreamSamplesForWindow(stream, windowStart, windowEnd) {
-    if (!windowStart || !windowEnd) {
-      return [];
+  function getLatestRelativeWindow(relativeSamples) {
+    if (relativeSamples.length === 0) {
+      return {
+        windowStartOffset: null,
+        windowEndOffset: null,
+        samples: []
+      };
     }
 
-    return stream.samples.filter(sample => {
+    const latestRelativeMs = relativeSamples[relativeSamples.length - 1].relativeMs;
+    const minuteIndex = Math.max(0, Math.floor(latestRelativeMs / PLOT_WINDOW_MS));
+    const windowStartOffset = minuteIndex * PLOT_WINDOW_MS;
+    const windowEndOffset = windowStartOffset + PLOT_WINDOW_MS;
+
+    const samplesNearWindow = relativeSamples.filter(sample => {
       return (
-        isPlotEligible(sample) &&
-        sample.sentAt >= windowStart &&
-        sample.sentAt < windowEnd
+        sample.relativeMs >= windowStartOffset - PLOT_ALIGNMENT_TOLERANCE_MS &&
+        sample.relativeMs <= windowEndOffset + PLOT_ALIGNMENT_TOLERANCE_MS
       );
     });
+
+    return {
+      windowStartOffset,
+      windowEndOffset,
+      samples: samplesNearWindow
+    };
+  }
+
+  function alignSamplesToUniversalSecondAxis(relativeWindowSamples, windowStartOffset) {
+    const points = [];
+    const matchedSamples = [];
+    const usedKeys = new Set();
+
+    if (!Number.isFinite(windowStartOffset) || relativeWindowSamples.length === 0) {
+      return { points, matchedSamples };
+    }
+
+    for (let second = 0; second <= 60; second += 1) {
+      const targetRelativeMs = windowStartOffset + (second * 1000);
+      let bestSample = null;
+      let bestDistance = Infinity;
+
+      for (const sample of relativeWindowSamples) {
+        if (usedKeys.has(sample.key)) {
+          continue;
+        }
+
+        const distance = Math.abs(sample.relativeMs - targetRelativeMs);
+
+        if (distance < bestDistance) {
+          bestSample = sample;
+          bestDistance = distance;
+        }
+      }
+
+      if (bestSample && bestDistance <= PLOT_ALIGNMENT_TOLERANCE_MS) {
+        usedKeys.add(bestSample.key);
+        matchedSamples.push(bestSample);
+        points.push({
+          x: second,
+          y: bestSample.throughputMbps
+        });
+      }
+    }
+
+    return { points, matchedSamples };
   }
 
   function makeHorizontalDataset(label, yValue, color, dash, width = 2) {
@@ -1462,41 +1509,73 @@
     };
   }
 
-  function buildDatasetsForStream(stream, windowSamples, windowStart) {
-    if (windowSamples.length === 0 || !windowStart) {
-      return [];
+  function buildDatasetsForStream(stream) {
+    const relative = getRelativeSamplesForStream(stream);
+
+    if (!relative.streamStart || relative.samples.length === 0) {
+      return {
+        datasets: [],
+        plottedCount: 0,
+        windowStartOffset: null,
+        windowEndOffset: null
+      };
     }
 
-    const windowStats = computeStats(windowSamples);
-    const points = windowSamples.map(sample => ({
-      x: Math.min(60, Math.max(0, (sample.sentAt - windowStart) / 1000)),
-      y: sample.throughputMbps
-    }));
+    const relativeWindow = getLatestRelativeWindow(relative.samples);
 
+    if (!Number.isFinite(relativeWindow.windowStartOffset)) {
+      return {
+        datasets: [],
+        plottedCount: 0,
+        windowStartOffset: null,
+        windowEndOffset: null
+      };
+    }
+
+    const aligned = alignSamplesToUniversalSecondAxis(
+      relativeWindow.samples,
+      relativeWindow.windowStartOffset
+    );
+
+    if (aligned.points.length === 0) {
+      return {
+        datasets: [],
+        plottedCount: 0,
+        windowStartOffset: relativeWindow.windowStartOffset,
+        windowEndOffset: relativeWindow.windowEndOffset
+      };
+    }
+
+    const windowStats = computeStats(aligned.matchedSamples);
     const displayName = stream.displayName || stream.code;
     const color = stream.color;
     const plusStd = windowStats.avg + windowStats.std;
     const minusStd = Math.max(0, windowStats.avg - windowStats.std);
 
-    return [
-      {
-        label: `${displayName} throughput`,
-        data: points,
-        borderColor: color,
-        backgroundColor: hexToRgba(color, 0.14),
-        borderWidth: 4.4,
-        pointRadius: 2.6,
-        pointHoverRadius: 6,
-        pointHitRadius: 14,
-        fill: false,
-        tension: 0.38,
-        cubicInterpolationMode: "monotone",
-        spanGaps: false
-      },
-      makeHorizontalDataset(`${displayName} max ${windowStats.max.toFixed(2)}`, windowStats.max, color, [3, 7], 2.5),
-      makeHorizontalDataset(`${displayName} +STD ${plusStd.toFixed(2)}`, plusStd, color, [13, 8], 2.2),
-      makeHorizontalDataset(`${displayName} -STD ${minusStd.toFixed(2)}`, minusStd, color, [13, 8], 2.2)
-    ];
+    return {
+      datasets: [
+        {
+          label: `${displayName} throughput`,
+          data: aligned.points,
+          borderColor: color,
+          backgroundColor: hexToRgba(color, 0.14),
+          borderWidth: 4.4,
+          pointRadius: 2.8,
+          pointHoverRadius: 6.2,
+          pointHitRadius: 14,
+          fill: false,
+          tension: 0.40,
+          cubicInterpolationMode: "monotone",
+          spanGaps: true
+        },
+        makeHorizontalDataset(`${displayName} max ${windowStats.max.toFixed(2)}`, windowStats.max, color, [3, 7], 2.5),
+        makeHorizontalDataset(`${displayName} +STD ${plusStd.toFixed(2)}`, plusStd, color, [13, 8], 2.2),
+        makeHorizontalDataset(`${displayName} -STD ${minusStd.toFixed(2)}`, minusStd, color, [13, 8], 2.2)
+      ],
+      plottedCount: aligned.points.length,
+      windowStartOffset: relativeWindow.windowStartOffset,
+      windowEndOffset: relativeWindow.windowEndOffset
+    };
   }
 
   function updateCombinedChart(force = false) {
@@ -1508,30 +1587,27 @@
       return;
     }
 
-    const globalWindow = getGlobalPlotWindow();
-
-    if (!globalWindow.windowStart || !globalWindow.windowEnd) {
-      combinedChart.data.datasets = [];
-      combinedChart.update("none");
-      lastPlottedCount = 0;
-      plottedSamples.textContent = "0";
-      plotWindowLabel.textContent = "Window: waiting for new samples after Start Plotting";
-      return;
-    }
+    refreshPlotStartTimestampFromEligibleSamples();
 
     const visibleStreams = getFilteredSortedStreams();
     let datasets = [];
     let plottedCount = 0;
+    let streamsWithPoints = 0;
+    let maxWindowEndOffset = 0;
 
     for (const stream of visibleStreams) {
-      const windowSamples = getStreamSamplesForWindow(
-        stream,
-        globalWindow.windowStart,
-        globalWindow.windowEnd
-      );
+      const result = buildDatasetsForStream(stream);
 
-      plottedCount += windowSamples.length;
-      datasets = datasets.concat(buildDatasetsForStream(stream, windowSamples, globalWindow.windowStart));
+      if (result.datasets.length > 0) {
+        streamsWithPoints += 1;
+      }
+
+      plottedCount += result.plottedCount;
+      datasets = datasets.concat(result.datasets);
+
+      if (Number.isFinite(result.windowEndOffset)) {
+        maxWindowEndOffset = Math.max(maxWindowEndOffset, result.windowEndOffset);
+      }
     }
 
     combinedChart.data.datasets = datasets;
@@ -1539,7 +1615,13 @@
 
     lastPlottedCount = plottedCount;
     plottedSamples.textContent = String(lastPlottedCount);
-    plotWindowLabel.textContent = `Window: ${formatClock(globalWindow.windowStart)} to ${formatClock(globalWindow.windowEnd)}`;
+
+    if (datasets.length === 0) {
+      plotWindowLabel.textContent = "Window: waiting for new aligned samples after Start Plotting";
+    } else {
+      const relativeMinute = Math.max(1, Math.ceil(maxWindowEndOffset / PLOT_WINDOW_MS));
+      plotWindowLabel.textContent = `Window: aligned 0–60 s view · ${streamsWithPoints}/${visibleStreams.length} visible streams plotted · relative minute ${relativeMinute}`;
+    }
   }
 
   function createStreamRow(stream) {
@@ -1805,7 +1887,7 @@
     plottedSamples.textContent = "0";
     plotWindowLabel.textContent = "Window: waiting for new samples after Start Plotting";
     updateTopStats();
-    showToast("Plotting armed. New samples from every stream will appear on the same chart.");
+    showToast("Plotting armed. New samples from every stream will be aligned by nearest timestamp and shown on the same chart.");
   }
 
   function pausePlotting() {
