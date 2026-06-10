@@ -896,6 +896,7 @@
 
   let plotMode = "stopped";
   let plotStartTimestamp = null;
+  let plotExcludedKeys = new Set();
   let lastPlottedCount = 0;
 
   const streamsQuery = query(
@@ -1000,31 +1001,82 @@
     return numberValue;
   }
 
-  function normalizeSample(key, value) {
-    const streamCode =
-      value?.streamCode ??
-      value?.interfaceCode ??
-      value?.interfaceName ??
-      value?.iface ??
-      value?.sensorId ??
-      value?.code ??
-      "unknown_stream";
+  function firstNonEmpty(...values) {
+    for (const value of values) {
+      if (value !== undefined && value !== null && String(value).trim() !== "") {
+        return value;
+      }
+    }
 
-    const interfaceName =
-      value?.interfaceName ??
-      value?.interface ??
-      value?.iface ??
-      streamCode;
+    return null;
+  }
+
+  function normalizeTimestamp(value) {
+    const raw = Number(value);
+
+    if (!Number.isFinite(raw)) {
+      return Date.now();
+    }
+
+    // Accept both Unix seconds and JavaScript/Firebase milliseconds.
+    // Seconds are common from Python time.time(); Firebase serverTimestamp is milliseconds.
+    if (raw > 0 && raw < 10_000_000_000) {
+      return raw * 1000;
+    }
+
+    return raw;
+  }
+
+  function normalizeSample(key, value) {
+    const streamCode = firstNonEmpty(
+      value?.streamCode,
+      value?.stream_code,
+      value?.stream,
+      value?.interfaceCode,
+      value?.interface_code,
+      value?.interfaceName,
+      value?.interface_name,
+      value?.ifaceName,
+      value?.iface,
+      value?.sendingInterface,
+      value?.sending_interface,
+      value?.probingInterface,
+      value?.probing_interface,
+      value?.sensorId,
+      value?.sensor_id,
+      value?.code,
+      value?.headers?.streamCode,
+      value?.headers?.interfaceName,
+      "unknown_stream"
+    );
+
+    const interfaceName = firstNonEmpty(
+      value?.interfaceName,
+      value?.interface_name,
+      value?.interface,
+      value?.ifaceName,
+      value?.iface,
+      value?.probingInterface,
+      value?.probing_interface,
+      streamCode
+    );
 
     const throughputMbps =
       parseThroughput(value?.throughputMbps) ??
+      parseThroughput(value?.throughput_mbps) ??
       parseThroughput(value?.mbps) ??
       parseThroughput(value?.throughput) ??
       parseThroughput(value?.value) ??
       0;
 
-    const sentAt =
-      Number(value?.sentAt ?? value?.timestamp ?? value?.createdAt ?? Date.now());
+    const sentAt = normalizeTimestamp(
+      value?.sentAt ??
+      value?.sent_at ??
+      value?.timestamp ??
+      value?.createdAt ??
+      value?.created_at ??
+      Date.now()
+    );
 
     return {
       key,
@@ -1032,7 +1084,7 @@
       streamCode: String(streamCode),
       interfaceName: String(interfaceName),
       throughputMbps,
-      sentAt: Number.isFinite(sentAt) ? sentAt : Date.now()
+      sentAt
     };
   }
 
@@ -1316,8 +1368,35 @@
     });
   }
 
-  function getCurrentPlotWindow(stream) {
-    if (!plotStartTimestamp) {
+  function isPlotEligible(sample) {
+    return !plotExcludedKeys.has(sample.key);
+  }
+
+  function getAllEligiblePlotSamples() {
+    return allSamples
+      .filter(sample => isPlotEligible(sample))
+      .sort((a, b) => a.sentAt - b.sentAt);
+  }
+
+  function ensurePlotStartTimestamp() {
+    if (plotStartTimestamp) {
+      return plotStartTimestamp;
+    }
+
+    const eligibleSamples = getAllEligiblePlotSamples();
+
+    if (eligibleSamples.length === 0) {
+      return null;
+    }
+
+    plotStartTimestamp = eligibleSamples[0].sentAt;
+    return plotStartTimestamp;
+  }
+
+  function getGlobalPlotWindow() {
+    const startTimestamp = ensurePlotStartTimestamp();
+
+    if (!startTimestamp) {
       return {
         windowStart: null,
         windowEnd: null,
@@ -1325,27 +1404,42 @@
       };
     }
 
-    const afterStart = stream.samples.filter(sample => sample.sentAt >= plotStartTimestamp);
+    const eligibleSamples = getAllEligiblePlotSamples()
+      .filter(sample => sample.sentAt >= startTimestamp);
 
-    if (afterStart.length === 0) {
+    if (eligibleSamples.length === 0) {
       return {
-        windowStart: plotStartTimestamp,
-        windowEnd: plotStartTimestamp + PLOT_WINDOW_MS,
+        windowStart: startTimestamp,
+        windowEnd: startTimestamp + PLOT_WINDOW_MS,
         samples: []
       };
     }
 
-    const latestTimestamp = afterStart[afterStart.length - 1].sentAt;
-    const minuteIndex = Math.max(0, Math.floor((latestTimestamp - plotStartTimestamp) / PLOT_WINDOW_MS));
-    const windowStart = plotStartTimestamp + (minuteIndex * PLOT_WINDOW_MS);
+    const latestTimestamp = eligibleSamples[eligibleSamples.length - 1].sentAt;
+    const minuteIndex = Math.max(0, Math.floor((latestTimestamp - startTimestamp) / PLOT_WINDOW_MS));
+    const windowStart = startTimestamp + (minuteIndex * PLOT_WINDOW_MS);
     const windowEnd = windowStart + PLOT_WINDOW_MS;
-    const windowSamples = afterStart.filter(sample => sample.sentAt >= windowStart && sample.sentAt < windowEnd);
+    const windowSamples = eligibleSamples.filter(sample => sample.sentAt >= windowStart && sample.sentAt < windowEnd);
 
     return {
       windowStart,
       windowEnd,
       samples: windowSamples
     };
+  }
+
+  function getStreamSamplesForWindow(stream, windowStart, windowEnd) {
+    if (!windowStart || !windowEnd) {
+      return [];
+    }
+
+    return stream.samples.filter(sample => {
+      return (
+        isPlotEligible(sample) &&
+        sample.sentAt >= windowStart &&
+        sample.sentAt < windowEnd
+      );
+    });
   }
 
   function makeHorizontalDataset(label, yValue, color, dash, width = 2) {
@@ -1368,14 +1462,14 @@
     };
   }
 
-  function buildDatasetsForStream(stream, windowSamples) {
-    if (windowSamples.length === 0) {
+  function buildDatasetsForStream(stream, windowSamples, windowStart) {
+    if (windowSamples.length === 0 || !windowStart) {
       return [];
     }
 
     const windowStats = computeStats(windowSamples);
     const points = windowSamples.map(sample => ({
-      x: Math.min(60, Math.max(0, (sample.sentAt - getCurrentPlotWindow(stream).windowStart) / 1000)),
+      x: Math.min(60, Math.max(0, (sample.sentAt - windowStart) / 1000)),
       y: sample.throughputMbps
     }));
 
@@ -1390,12 +1484,13 @@
         data: points,
         borderColor: color,
         backgroundColor: hexToRgba(color, 0.14),
-        borderWidth: 4,
-        pointRadius: 2.8,
+        borderWidth: 4.4,
+        pointRadius: 2.6,
         pointHoverRadius: 6,
         pointHitRadius: 14,
         fill: false,
-        tension: 0.30,
+        tension: 0.38,
+        cubicInterpolationMode: "monotone",
         spanGaps: false
       },
       makeHorizontalDataset(`${displayName} max ${windowStats.max.toFixed(2)}`, windowStats.max, color, [3, 7], 2.5),
@@ -1413,32 +1508,30 @@
       return;
     }
 
-    if (!plotStartTimestamp) {
+    const globalWindow = getGlobalPlotWindow();
+
+    if (!globalWindow.windowStart || !globalWindow.windowEnd) {
       combinedChart.data.datasets = [];
       combinedChart.update("none");
       lastPlottedCount = 0;
       plottedSamples.textContent = "0";
-      plotWindowLabel.textContent = "Window: —";
+      plotWindowLabel.textContent = "Window: waiting for new samples after Start Plotting";
       return;
     }
 
     const visibleStreams = getFilteredSortedStreams();
     let datasets = [];
     let plottedCount = 0;
-    let newestWindowStart = null;
-    let newestWindowEnd = null;
 
     for (const stream of visibleStreams) {
-      const windowInfo = getCurrentPlotWindow(stream);
-      const windowSamples = windowInfo.samples;
-
-      if (windowInfo.windowStart && (!newestWindowStart || windowInfo.windowStart > newestWindowStart)) {
-        newestWindowStart = windowInfo.windowStart;
-        newestWindowEnd = windowInfo.windowEnd;
-      }
+      const windowSamples = getStreamSamplesForWindow(
+        stream,
+        globalWindow.windowStart,
+        globalWindow.windowEnd
+      );
 
       plottedCount += windowSamples.length;
-      datasets = datasets.concat(buildDatasetsForStream(stream, windowSamples));
+      datasets = datasets.concat(buildDatasetsForStream(stream, windowSamples, globalWindow.windowStart));
     }
 
     combinedChart.data.datasets = datasets;
@@ -1446,12 +1539,7 @@
 
     lastPlottedCount = plottedCount;
     plottedSamples.textContent = String(lastPlottedCount);
-
-    if (newestWindowStart && newestWindowEnd) {
-      plotWindowLabel.textContent = `Window: ${formatClock(newestWindowStart)} to ${formatClock(newestWindowEnd)}`;
-    } else {
-      plotWindowLabel.textContent = `Window: waiting for samples after ${formatClock(plotStartTimestamp)}`;
-    }
+    plotWindowLabel.textContent = `Window: ${formatClock(globalWindow.windowStart)} to ${formatClock(globalWindow.windowEnd)}`;
   }
 
   function createStreamRow(stream) {
@@ -1701,10 +1789,12 @@
   }
 
   function startPlotting() {
-    const newest = allSamples.length > 0 ? allSamples[allSamples.length - 1].sentAt : Date.now();
-
+    // Important: do not use the newest existing sample as the start point.
+    // That can bias the chart toward only the stream that happened to send last.
+    // Instead, freeze the current database keys and start plotting only NEW samples.
     plotMode = "running";
-    plotStartTimestamp = newest || Date.now();
+    plotStartTimestamp = null;
+    plotExcludedKeys = new Set(allSamples.map(sample => sample.key));
     lastPlottedCount = 0;
 
     if (combinedChart) {
@@ -1712,9 +1802,10 @@
       combinedChart.update("none");
     }
 
-    updateCombinedChart(true);
+    plottedSamples.textContent = "0";
+    plotWindowLabel.textContent = "Window: waiting for new samples after Start Plotting";
     updateTopStats();
-    showToast(`Plotting started at ${formatClock(plotStartTimestamp)}.`);
+    showToast("Plotting armed. New samples from every stream will appear on the same chart.");
   }
 
   function pausePlotting() {
@@ -1741,6 +1832,7 @@
   function stopPlotting() {
     plotMode = "stopped";
     plotStartTimestamp = null;
+    plotExcludedKeys = new Set();
     lastPlottedCount = 0;
     plottedSamples.textContent = "0";
     plotWindowLabel.textContent = "Window: —";
@@ -1791,6 +1883,7 @@
         allSamples = [];
         streams = new Map();
         previousSampleCount = 0;
+        plotExcludedKeys = new Set();
         lastPlottedCount = 0;
         updateTopStats();
         renderStreamRows();
