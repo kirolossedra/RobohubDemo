@@ -1,1 +1,1475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+<title>Iperfer Live Throughput Streams</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+
+<style>
+  :root {
+    --bg-main: #050816;
+    --bg-panel: rgba(15, 23, 42, 0.82);
+    --bg-panel-solid: #0f172a;
+    --bg-soft: rgba(30, 41, 59, 0.68);
+    --border: rgba(148, 163, 184, 0.22);
+    --border-strong: rgba(148, 163, 184, 0.42);
+    --text-main: #e5e7eb;
+    --text-muted: #94a3b8;
+    --text-soft: #cbd5e1;
+    --accent: #38bdf8;
+    --accent-2: #a78bfa;
+    --success: #22c55e;
+    --danger: #ef4444;
+    --warning: #f59e0b;
+    --card-shadow: 0 24px 80px rgba(0, 0, 0, 0.36);
+    --radius-xl: 28px;
+    --radius-lg: 20px;
+    --radius-md: 14px;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    color: var(--text-main);
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+    background:
+      radial-gradient(circle at top left, rgba(56, 189, 248, 0.22), transparent 34%),
+      radial-gradient(circle at top right, rgba(167, 139, 250, 0.18), transparent 30%),
+      radial-gradient(circle at bottom left, rgba(34, 197, 94, 0.10), transparent 36%),
+      linear-gradient(135deg, #020617 0%, #08111f 42%, #111827 100%);
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.032) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.032) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: linear-gradient(to bottom, black, transparent 88%);
+  }
+
+  .page {
+    width: min(1500px, calc(100% - 36px));
+    margin: 0 auto;
+    padding: 28px 0 40px;
+  }
+
+  .hero {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    background:
+      linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(30, 41, 59, 0.74)),
+      radial-gradient(circle at 10% 20%, rgba(56,189,248,0.25), transparent 28%),
+      radial-gradient(circle at 90% 20%, rgba(167,139,250,0.23), transparent 28%);
+    box-shadow: var(--card-shadow);
+    padding: 30px;
+    backdrop-filter: blur(18px);
+  }
+
+  .hero::after {
+    content: "";
+    position: absolute;
+    right: -160px;
+    top: -160px;
+    width: 440px;
+    height: 440px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(56,189,248,0.22), transparent 64%);
+    filter: blur(2px);
+  }
+
+  .hero-inner {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+    gap: 28px;
+    align-items: center;
+  }
+
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 13px;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, 0.26);
+    background: rgba(15, 23, 42, 0.64);
+    color: #dbeafe;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.25px;
+  }
+
+  .pulse-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--success);
+    box-shadow: 0 0 0 rgba(34,197,94,0.9);
+    animation: pulse 1.5s infinite;
+  }
+
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(34,197,94,0.75); }
+    75% { box-shadow: 0 0 0 10px rgba(34,197,94,0); }
+    100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
+  }
+
+  h1 {
+    margin: 18px 0 0;
+    font-size: clamp(34px, 5vw, 62px);
+    line-height: 0.96;
+    letter-spacing: -2px;
+  }
+
+  .hero-copy {
+    max-width: 820px;
+    margin: 18px 0 0;
+    color: rgba(226, 232, 240, 0.78);
+    line-height: 1.75;
+    font-size: 16px;
+  }
+
+  .endpoint-card {
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: var(--radius-lg);
+    background: rgba(2, 6, 23, 0.66);
+    padding: 18px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+  }
+
+  .endpoint-card h2 {
+    margin: 0 0 8px;
+    font-size: 16px;
+  }
+
+  .endpoint-card p {
+    margin: 0 0 12px;
+    color: var(--text-muted);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .code {
+    display: block;
+    overflow-x: auto;
+    padding: 14px;
+    border-radius: 14px;
+    background: rgba(2, 6, 23, 0.92);
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    color: #bae6fd;
+    font-family: Consolas, Monaco, "Courier New", monospace;
+    font-size: 12.5px;
+    line-height: 1.6;
+    white-space: pre;
+  }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 16px;
+    margin: 20px 0;
+  }
+
+  .stat-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--bg-panel);
+    box-shadow: var(--card-shadow);
+    padding: 18px;
+    backdrop-filter: blur(16px);
+    min-height: 120px;
+  }
+
+  .stat-label {
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+  }
+
+  .stat-value {
+    margin-top: 12px;
+    font-size: 28px;
+    font-weight: 900;
+    letter-spacing: -0.7px;
+  }
+
+  .stat-small {
+    margin-top: 9px;
+    color: var(--text-muted);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .toolbar {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    background: rgba(15, 23, 42, 0.74);
+    box-shadow: var(--card-shadow);
+    backdrop-filter: blur(18px);
+    padding: 16px;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .toolbar-left,
+  .toolbar-right {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .input,
+  .select {
+    color: var(--text-main);
+    background: rgba(2, 6, 23, 0.58);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 11px 14px;
+    outline: none;
+    min-height: 42px;
+  }
+
+  .input {
+    width: 280px;
+  }
+
+  .input:focus,
+  .select:focus {
+    border-color: rgba(56, 189, 248, 0.75);
+    box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.12);
+  }
+
+  .button {
+    border: 1px solid rgba(148, 163, 184, 0.26);
+    border-radius: 999px;
+    background: rgba(56, 189, 248, 0.14);
+    color: #e0f2fe;
+    padding: 11px 15px;
+    cursor: pointer;
+    font-weight: 900;
+    transition: 0.18s ease;
+    min-height: 42px;
+  }
+
+  .button:hover {
+    transform: translateY(-1px);
+    border-color: rgba(56, 189, 248, 0.58);
+    background: rgba(56, 189, 248, 0.20);
+  }
+
+  .button-danger {
+    color: #fecaca;
+    background: rgba(239, 68, 68, 0.12);
+  }
+
+  .button-danger:hover {
+    border-color: rgba(239, 68, 68, 0.58);
+    background: rgba(239, 68, 68, 0.20);
+  }
+
+  .button-muted {
+    color: #cbd5e1;
+    background: rgba(148, 163, 184, 0.10);
+  }
+
+  .streams-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+  }
+
+  .stream-card {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    background:
+      linear-gradient(180deg, rgba(15, 23, 42, 0.92), rgba(2, 6, 23, 0.82)),
+      radial-gradient(circle at top left, rgba(56,189,248,0.12), transparent 32%);
+    box-shadow: var(--card-shadow);
+    backdrop-filter: blur(18px);
+  }
+
+  .stream-card::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 3px;
+    background: var(--stream-color, #38bdf8);
+  }
+
+  .stream-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 18px 18px 12px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+  }
+
+  .stream-title-wrap {
+    min-width: 0;
+  }
+
+  .stream-title {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 19px;
+    letter-spacing: -0.4px;
+  }
+
+  .stream-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--stream-color, #38bdf8);
+    box-shadow: 0 0 24px var(--stream-color, #38bdf8);
+    flex: 0 0 auto;
+  }
+
+  .stream-subtitle {
+    margin: 6px 0 0;
+    color: var(--text-muted);
+    font-size: 12.5px;
+    line-height: 1.55;
+    word-break: break-word;
+  }
+
+  .stream-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .color-picker {
+    width: 46px;
+    height: 38px;
+    padding: 4px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: rgba(2, 6, 23, 0.55);
+    cursor: pointer;
+  }
+
+  .mini-button {
+    border: 1px solid rgba(148, 163, 184, 0.23);
+    border-radius: 12px;
+    background: rgba(148, 163, 184, 0.10);
+    color: var(--text-soft);
+    min-height: 38px;
+    padding: 8px 10px;
+    font-weight: 900;
+    cursor: pointer;
+    transition: 0.16s ease;
+  }
+
+  .mini-button:hover {
+    background: rgba(148, 163, 184, 0.16);
+  }
+
+  .mini-button.danger {
+    color: #fecaca;
+    background: rgba(239, 68, 68, 0.10);
+  }
+
+  .mini-button.danger:hover {
+    background: rgba(239, 68, 68, 0.18);
+  }
+
+  .stream-metrics {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
+    padding: 14px 18px 0;
+  }
+
+  .metric-pill {
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 16px;
+    background: rgba(15, 23, 42, 0.56);
+    padding: 12px;
+    min-width: 0;
+  }
+
+  .metric-label {
+    color: var(--text-muted);
+    font-size: 10.5px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.45px;
+  }
+
+  .metric-value {
+    margin-top: 7px;
+    font-size: 19px;
+    font-weight: 950;
+    letter-spacing: -0.45px;
+    white-space: nowrap;
+  }
+
+  .chart-shell {
+    padding: 12px 14px 16px;
+    height: 360px;
+  }
+
+  .chart-shell canvas {
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  .empty-state {
+    border: 1px dashed rgba(148, 163, 184, 0.34);
+    border-radius: var(--radius-xl);
+    background: rgba(15, 23, 42, 0.54);
+    padding: 50px 18px;
+    text-align: center;
+    color: var(--text-muted);
+    box-shadow: var(--card-shadow);
+  }
+
+  .empty-state h2 {
+    margin: 0 0 10px;
+    color: var(--text-main);
+    font-size: 24px;
+  }
+
+  .toast {
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    display: none;
+    max-width: min(520px, calc(100% - 36px));
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    border-radius: 18px;
+    background: rgba(2, 6, 23, 0.92);
+    color: var(--text-main);
+    box-shadow: var(--card-shadow);
+    padding: 14px 16px;
+    z-index: 30;
+    backdrop-filter: blur(18px);
+  }
+
+  .toast.show {
+    display: block;
+    animation: toastIn 0.18s ease-out;
+  }
+
+  @keyframes toastIn {
+    from { transform: translateY(8px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+
+  .footer-note {
+    margin: 18px 4px 0;
+    color: var(--text-muted);
+    font-size: 13px;
+    line-height: 1.65;
+  }
+
+  @media (max-width: 1180px) {
+    .hero-inner {
+      grid-template-columns: 1fr;
+    }
+
+    .stats-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .streams-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 720px) {
+    .page {
+      width: min(100% - 20px, 1500px);
+      padding-top: 14px;
+    }
+
+    .hero {
+      padding: 22px;
+    }
+
+    .stats-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .toolbar,
+    .toolbar-left,
+    .toolbar-right,
+    .input,
+    .select,
+    .button {
+      width: 100%;
+    }
+
+    .stream-header {
+      flex-direction: column;
+    }
+
+    .stream-controls {
+      width: 100%;
+      justify-content: flex-start;
+    }
+
+    .stream-metrics {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .chart-shell {
+      height: 320px;
+    }
+  }
+</style>
+</head>
+
+<body>
+
+<div class="page">
+
+  <section class="hero">
+    <div class="hero-inner">
+      <div>
+        <div class="eyebrow">
+          <span class="pulse-dot"></span>
+          Live Firebase Throughput Receiver
+        </div>
+
+        <h1>Iperfer Stream Plotter</h1>
+
+        <p class="hero-copy">
+          This dashboard listens to the Firebase Realtime Database branch
+          <strong>iperf3_streams</strong>. As soon as a client-side iperfer agent pushes
+          throughput samples with an interface code, the website creates a live plot for that stream.
+        </p>
+      </div>
+
+      <div class="endpoint-card">
+        <h2>POST endpoint</h2>
+        <p>Every client measurement agent pushes samples here. The interface being measured does not need internet; only the telemetry sender needs access to this Firebase endpoint.</p>
+<pre class="code">POST https://test-c7bf3-default-rtdb.firebaseio.com/iperf3_streams.json
+
+{
+  "streamCode": "wifi_client_1",
+  "interfaceName": "Wi-Fi",
+  "throughputMbps": 72.4,
+  "sentAt": {
+    ".sv": "timestamp"
+  }
+}</pre>
+      </div>
+    </div>
+  </section>
+
+  <section class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-label">Connection</div>
+      <div class="stat-value" id="connectionStatus">Connecting</div>
+      <div class="stat-small">Firebase listener status</div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-label">Active Streams</div>
+      <div class="stat-value" id="activeStreams">0</div>
+      <div class="stat-small">Unique interface stream codes</div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-label">Total Samples</div>
+      <div class="stat-value" id="totalSamples">0</div>
+      <div class="stat-small">Records under iperf3_streams</div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-label">Latest Stream</div>
+      <div class="stat-value" id="latestStream">—</div>
+      <div class="stat-small">Most recent received stream</div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-label">Last Updated</div>
+      <div class="stat-value" id="lastUpdated">—</div>
+      <div class="stat-small">Local dashboard time</div>
+    </div>
+  </section>
+
+  <section class="toolbar">
+    <div class="toolbar-left">
+      <input id="searchInput" class="input" type="text" placeholder="Filter stream code or interface name...">
+
+      <select id="sortSelect" class="select">
+        <option value="latest">Sort by latest sample</option>
+        <option value="name">Sort by stream name</option>
+        <option value="avg">Sort by average throughput</option>
+        <option value="max">Sort by max throughput</option>
+      </select>
+    </div>
+
+    <div class="toolbar-right">
+      <button class="button button-muted" id="clearSearchButton">Clear Filter</button>
+      <button class="button button-danger" id="deleteAllButton">Delete All Streams</button>
+    </div>
+  </section>
+
+  <main id="streamsGrid" class="streams-grid">
+    <section class="empty-state">
+      <h2>Waiting for iperfer streams</h2>
+      <p>No throughput samples have been received under <strong>iperf3_streams</strong> yet.</p>
+    </section>
+  </main>
+
+  <p class="footer-note">
+    Security note: this page exposes Firebase web configuration, which is normal for Firebase browser apps.
+    Access control depends on your Realtime Database rules. If public writes/deletes are allowed, anyone with the endpoint can submit or delete samples.
+  </p>
+
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+  import {
+    getDatabase,
+    ref,
+    onValue,
+    query,
+    orderByChild,
+    remove
+  } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAjBbnm8F76BCb9C5fluUyoZ2QnMSXlHOo",
+    authDomain: "test-c7bf3.firebaseapp.com",
+    databaseURL: "https://test-c7bf3-default-rtdb.firebaseio.com",
+    projectId: "test-c7bf3",
+    storageBucket: "test-c7bf3.firebasestorage.app",
+    messagingSenderId: "573697013702",
+    appId: "1:573697013702:web:fe132fc4d796c06bdbe4c7"
+  };
+
+  const DATABASE_BRANCH = "iperf3_streams";
+  const MAX_POINTS_PER_STREAM = 220;
+  const DEFAULT_COLORS = [
+    "#38bdf8",
+    "#a78bfa",
+    "#22c55e",
+    "#f59e0b",
+    "#fb7185",
+    "#2dd4bf",
+    "#60a5fa",
+    "#e879f9",
+    "#f97316",
+    "#84cc16"
+  ];
+
+  const ChartJS = window.Chart;
+
+  ChartJS.defaults.color = "rgba(226, 232, 240, 0.78)";
+  ChartJS.defaults.borderColor = "rgba(148, 163, 184, 0.18)";
+  ChartJS.defaults.font.family = 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif';
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+
+  const connectionStatus = document.getElementById("connectionStatus");
+  const activeStreams = document.getElementById("activeStreams");
+  const totalSamples = document.getElementById("totalSamples");
+  const latestStream = document.getElementById("latestStream");
+  const lastUpdated = document.getElementById("lastUpdated");
+  const streamsGrid = document.getElementById("streamsGrid");
+  const searchInput = document.getElementById("searchInput");
+  const sortSelect = document.getElementById("sortSelect");
+  const clearSearchButton = document.getElementById("clearSearchButton");
+  const deleteAllButton = document.getElementById("deleteAllButton");
+  const toast = document.getElementById("toast");
+
+  let allSamples = [];
+  let streams = new Map();
+  let chartByCode = new Map();
+  let cardByCode = new Map();
+  let colorsByCode = loadColorPreferences();
+  let previousSampleCount = 0;
+
+  const streamsQuery = query(
+    ref(db, DATABASE_BRANCH),
+    orderByChild("sentAt")
+  );
+
+  function loadColorPreferences() {
+    try {
+      return JSON.parse(localStorage.getItem("iperfer_stream_colors") || "{}");
+    } catch {
+      return {};
+    }
+  }
+
+  function saveColorPreferences() {
+    localStorage.setItem("iperfer_stream_colors", JSON.stringify(colorsByCode));
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function safeDomId(value) {
+    return String(value)
+      .replace(/[^a-zA-Z0-9_-]/g, "_")
+      .slice(0, 80);
+  }
+
+  function getDefaultColor(index) {
+    return DEFAULT_COLORS[index % DEFAULT_COLORS.length];
+  }
+
+  function getStreamColor(code, index = 0) {
+    if (!colorsByCode[code]) {
+      colorsByCode[code] = getDefaultColor(index);
+      saveColorPreferences();
+    }
+
+    return colorsByCode[code];
+  }
+
+  function formatTime(timestamp) {
+    if (!timestamp) {
+      return "—";
+    }
+
+    const date = new Date(Number(timestamp));
+
+    if (Number.isNaN(date.getTime())) {
+      return "—";
+    }
+
+    return date.toLocaleTimeString(undefined, {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit"
+    });
+  }
+
+  function formatDateTime(timestamp) {
+    if (!timestamp) {
+      return "—";
+    }
+
+    const date = new Date(Number(timestamp));
+
+    if (Number.isNaN(date.getTime())) {
+      return "—";
+    }
+
+    return date.toLocaleString(undefined, {
+      month: "short",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit"
+    });
+  }
+
+  function formatDashboardTime() {
+    return new Date().toLocaleTimeString(undefined, {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit"
+    });
+  }
+
+  function parseThroughput(value) {
+    const numberValue = Number(value);
+
+    if (!Number.isFinite(numberValue)) {
+      return null;
+    }
+
+    return numberValue;
+  }
+
+  function normalizeSample(key, value) {
+    const streamCode =
+      value?.streamCode ??
+      value?.interfaceCode ??
+      value?.interfaceName ??
+      value?.iface ??
+      value?.sensorId ??
+      value?.code ??
+      "unknown_stream";
+
+    const interfaceName =
+      value?.interfaceName ??
+      value?.interface ??
+      value?.iface ??
+      streamCode;
+
+    const throughputMbps =
+      parseThroughput(value?.throughputMbps) ??
+      parseThroughput(value?.mbps) ??
+      parseThroughput(value?.throughput) ??
+      parseThroughput(value?.value) ??
+      0;
+
+    const sentAt =
+      Number(value?.sentAt ?? value?.timestamp ?? value?.createdAt ?? Date.now());
+
+    return {
+      key,
+      raw: value,
+      streamCode: String(streamCode),
+      interfaceName: String(interfaceName),
+      throughputMbps,
+      sentAt: Number.isFinite(sentAt) ? sentAt : Date.now()
+    };
+  }
+
+  function computeStats(samples) {
+    const values = samples.map(sample => sample.throughputMbps);
+
+    if (values.length === 0) {
+      return {
+        current: 0,
+        avg: 0,
+        min: 0,
+        max: 0,
+        std: 0,
+        count: 0
+      };
+    }
+
+    const count = values.length;
+    const current = values[count - 1];
+    const sum = values.reduce((acc, value) => acc + value, 0);
+    const avg = sum / count;
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const variance = values.reduce((acc, value) => acc + Math.pow(value - avg, 2), 0) / count;
+    const std = Math.sqrt(variance);
+
+    return { current, avg, min, max, std, count };
+  }
+
+  function groupSamplesByStream(samples) {
+    const grouped = new Map();
+
+    for (const sample of samples) {
+      if (!grouped.has(sample.streamCode)) {
+        grouped.set(sample.streamCode, []);
+      }
+
+      grouped.get(sample.streamCode).push(sample);
+    }
+
+    const streamMap = new Map();
+    let index = 0;
+
+    for (const [code, streamSamples] of grouped.entries()) {
+      streamSamples.sort((a, b) => a.sentAt - b.sentAt);
+
+      const trimmedSamples = streamSamples.slice(-MAX_POINTS_PER_STREAM);
+      const latest = trimmedSamples[trimmedSamples.length - 1];
+      const stats = computeStats(trimmedSamples);
+
+      streamMap.set(code, {
+        code,
+        interfaceName: latest?.interfaceName ?? code,
+        color: getStreamColor(code, index),
+        samples: trimmedSamples,
+        allKeys: streamSamples.map(sample => sample.key),
+        latestTimestamp: latest?.sentAt ?? 0,
+        stats
+      });
+
+      index += 1;
+    }
+
+    return streamMap;
+  }
+
+  function getFilteredSortedStreams() {
+    const term = searchInput.value.trim().toLowerCase();
+
+    let list = Array.from(streams.values());
+
+    if (term) {
+      list = list.filter(stream => {
+        return (
+          stream.code.toLowerCase().includes(term) ||
+          stream.interfaceName.toLowerCase().includes(term)
+        );
+      });
+    }
+
+    const sortMode = sortSelect.value;
+
+    if (sortMode === "name") {
+      list.sort((a, b) => a.code.localeCompare(b.code));
+    } else if (sortMode === "avg") {
+      list.sort((a, b) => b.stats.avg - a.stats.avg);
+    } else if (sortMode === "max") {
+      list.sort((a, b) => b.stats.max - a.stats.max);
+    } else {
+      list.sort((a, b) => b.latestTimestamp - a.latestTimestamp);
+    }
+
+    return list;
+  }
+
+  function updateTopStats() {
+    activeStreams.textContent = streams.size;
+    totalSamples.textContent = allSamples.length;
+
+    const newest = [...allSamples].sort((a, b) => b.sentAt - a.sentAt)[0];
+
+    if (newest) {
+      latestStream.textContent = newest.streamCode;
+    } else {
+      latestStream.textContent = "—";
+    }
+
+    lastUpdated.textContent = formatDashboardTime();
+  }
+
+  function showToast(message) {
+    toast.textContent = message;
+    toast.classList.add("show");
+
+    clearTimeout(showToast.timeoutId);
+    showToast.timeoutId = setTimeout(() => {
+      toast.classList.remove("show");
+    }, 3200);
+  }
+
+  function renderEmptyState(title, body) {
+    streamsGrid.innerHTML = `
+      <section class="empty-state">
+        <h2>${escapeHtml(title)}</h2>
+        <p>${escapeHtml(body)}</p>
+      </section>
+    `;
+  }
+
+  function createStreamCard(stream) {
+    const domId = safeDomId(stream.code);
+
+    const card = document.createElement("section");
+    card.className = "stream-card";
+    card.dataset.streamCode = stream.code;
+    card.style.setProperty("--stream-color", stream.color);
+
+    card.innerHTML = `
+      <div class="stream-header">
+        <div class="stream-title-wrap">
+          <h2 class="stream-title">
+            <span class="stream-dot"></span>
+            <span>${escapeHtml(stream.code)}</span>
+          </h2>
+          <div class="stream-subtitle">
+            Interface: <strong>${escapeHtml(stream.interfaceName)}</strong>
+            · Latest: <span data-role="latest-time">${formatDateTime(stream.latestTimestamp)}</span>
+          </div>
+        </div>
+
+        <div class="stream-controls">
+          <input
+            class="color-picker"
+            type="color"
+            value="${escapeHtml(stream.color)}"
+            title="Change plot color"
+            data-action="color"
+          >
+
+          <button class="mini-button" data-action="focus">Focus</button>
+          <button class="mini-button danger" data-action="delete">Delete Stream</button>
+        </div>
+      </div>
+
+      <div class="stream-metrics">
+        <div class="metric-pill">
+          <div class="metric-label">Current</div>
+          <div class="metric-value" data-role="current">0.000</div>
+        </div>
+
+        <div class="metric-pill">
+          <div class="metric-label">Average</div>
+          <div class="metric-value" data-role="avg">0.000</div>
+        </div>
+
+        <div class="metric-pill">
+          <div class="metric-label">Minimum</div>
+          <div class="metric-value" data-role="min">0.000</div>
+        </div>
+
+        <div class="metric-pill">
+          <div class="metric-label">Maximum</div>
+          <div class="metric-value" data-role="max">0.000</div>
+        </div>
+
+        <div class="metric-pill">
+          <div class="metric-label">Std / N</div>
+          <div class="metric-value" data-role="std">0.000 / 0</div>
+        </div>
+      </div>
+
+      <div class="chart-shell">
+        <canvas id="chart_${domId}"></canvas>
+      </div>
+    `;
+
+    const colorInput = card.querySelector('[data-action="color"]');
+    colorInput.addEventListener("input", event => {
+      updateStreamColor(stream.code, event.target.value);
+    });
+
+    const deleteButton = card.querySelector('[data-action="delete"]');
+    deleteButton.addEventListener("click", () => {
+      deleteStream(stream.code);
+    });
+
+    const focusButton = card.querySelector('[data-action="focus"]');
+    focusButton.addEventListener("click", () => {
+      card.scrollIntoView({ behavior: "smooth", block: "center" });
+      card.animate(
+        [
+          { boxShadow: "0 0 0 0 rgba(56,189,248,0.0)" },
+          { boxShadow: "0 0 0 5px rgba(56,189,248,0.22)" },
+          { boxShadow: "0 24px 80px rgba(0,0,0,0.36)" }
+        ],
+        { duration: 900, easing: "ease-out" }
+      );
+    });
+
+    streamsGrid.appendChild(card);
+    cardByCode.set(stream.code, card);
+
+    createChart(stream);
+
+    return card;
+  }
+
+  function createChart(stream) {
+    const domId = safeDomId(stream.code);
+    const canvas = document.getElementById(`chart_${domId}`);
+
+    if (!canvas) {
+      return;
+    }
+
+    const context = canvas.getContext("2d");
+
+    const gradient = context.createLinearGradient(0, 0, 0, canvas.offsetHeight || 360);
+    gradient.addColorStop(0, hexToRgba(stream.color, 0.34));
+    gradient.addColorStop(0.55, hexToRgba(stream.color, 0.10));
+    gradient.addColorStop(1, hexToRgba(stream.color, 0.00));
+
+    const chart = new ChartJS(context, {
+      type: "line",
+      data: {
+        labels: [],
+        datasets: [
+          {
+            label: `${stream.code} throughput`,
+            data: [],
+            borderColor: stream.color,
+            backgroundColor: gradient,
+            fill: true,
+            borderWidth: 2.7,
+            pointRadius: 0,
+            pointHoverRadius: 5,
+            pointHitRadius: 14,
+            tension: 0.36
+          },
+          {
+            label: "Average",
+            data: [],
+            borderColor: "rgba(226, 232, 240, 0.72)",
+            borderWidth: 1.6,
+            borderDash: [7, 7],
+            pointRadius: 0,
+            fill: false,
+            tension: 0
+          },
+          {
+            label: "Max",
+            data: [],
+            borderColor: "rgba(34, 197, 94, 0.72)",
+            borderWidth: 1.15,
+            borderDash: [2, 6],
+            pointRadius: 0,
+            fill: false,
+            tension: 0
+          },
+          {
+            label: "Min",
+            data: [],
+            borderColor: "rgba(245, 158, 11, 0.72)",
+            borderWidth: 1.15,
+            borderDash: [2, 6],
+            pointRadius: 0,
+            fill: false,
+            tension: 0
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: {
+          duration: 260
+        },
+        interaction: {
+          mode: "index",
+          intersect: false
+        },
+        plugins: {
+          legend: {
+            display: true,
+            labels: {
+              usePointStyle: true,
+              boxWidth: 8,
+              boxHeight: 8,
+              padding: 16
+            }
+          },
+          tooltip: {
+            backgroundColor: "rgba(2, 6, 23, 0.94)",
+            borderColor: "rgba(148, 163, 184, 0.28)",
+            borderWidth: 1,
+            titleColor: "#e5e7eb",
+            bodyColor: "#cbd5e1",
+            padding: 12,
+            displayColors: true,
+            callbacks: {
+              label: context => {
+                const value = Number(context.raw ?? 0);
+                return `${context.dataset.label}: ${value.toFixed(3)} Mbps`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: {
+              color: "rgba(148, 163, 184, 0.10)"
+            },
+            ticks: {
+              maxRotation: 0,
+              autoSkip: true,
+              maxTicksLimit: 9
+            },
+            title: {
+              display: true,
+              text: "Sample time"
+            }
+          },
+          y: {
+            beginAtZero: true,
+            grid: {
+              color: "rgba(148, 163, 184, 0.13)"
+            },
+            ticks: {
+              callback: value => `${value} Mbps`
+            },
+            title: {
+              display: true,
+              text: "Throughput"
+            }
+          }
+        }
+      }
+    });
+
+    chartByCode.set(stream.code, chart);
+  }
+
+  function hexToRgba(hex, alpha) {
+    const clean = String(hex).replace("#", "");
+
+    if (clean.length !== 6) {
+      return `rgba(56, 189, 248, ${alpha})`;
+    }
+
+    const r = parseInt(clean.slice(0, 2), 16);
+    const g = parseInt(clean.slice(2, 4), 16);
+    const b = parseInt(clean.slice(4, 6), 16);
+
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+
+  function updateStreamCard(stream) {
+    const card = cardByCode.get(stream.code);
+
+    if (!card) {
+      return;
+    }
+
+    card.style.setProperty("--stream-color", stream.color);
+
+    const latestTime = card.querySelector('[data-role="latest-time"]');
+    const current = card.querySelector('[data-role="current"]');
+    const avg = card.querySelector('[data-role="avg"]');
+    const min = card.querySelector('[data-role="min"]');
+    const max = card.querySelector('[data-role="max"]');
+    const std = card.querySelector('[data-role="std"]');
+    const colorInput = card.querySelector('[data-action="color"]');
+
+    latestTime.textContent = formatDateTime(stream.latestTimestamp);
+    current.textContent = stream.stats.current.toFixed(3);
+    avg.textContent = stream.stats.avg.toFixed(3);
+    min.textContent = stream.stats.min.toFixed(3);
+    max.textContent = stream.stats.max.toFixed(3);
+    std.textContent = `${stream.stats.std.toFixed(3)} / ${stream.stats.count}`;
+
+    if (colorInput.value !== stream.color) {
+      colorInput.value = stream.color;
+    }
+  }
+
+  function updateChart(stream) {
+    const chart = chartByCode.get(stream.code);
+
+    if (!chart) {
+      return;
+    }
+
+    const labels = stream.samples.map(sample => formatTime(sample.sentAt));
+    const values = stream.samples.map(sample => sample.throughputMbps);
+    const avgLine = stream.samples.map(() => stream.stats.avg);
+    const maxLine = stream.samples.map(() => stream.stats.max);
+    const minLine = stream.samples.map(() => stream.stats.min);
+
+    chart.data.labels = labels;
+    chart.data.datasets[0].data = values;
+    chart.data.datasets[0].label = `${stream.code} throughput`;
+    chart.data.datasets[0].borderColor = stream.color;
+
+    const context = chart.ctx;
+    const gradient = context.createLinearGradient(0, 0, 0, chart.height || 360);
+    gradient.addColorStop(0, hexToRgba(stream.color, 0.34));
+    gradient.addColorStop(0.55, hexToRgba(stream.color, 0.10));
+    gradient.addColorStop(1, hexToRgba(stream.color, 0.00));
+    chart.data.datasets[0].backgroundColor = gradient;
+
+    chart.data.datasets[1].data = avgLine;
+    chart.data.datasets[2].data = maxLine;
+    chart.data.datasets[3].data = minLine;
+
+    chart.update("none");
+  }
+
+  function renderStreams() {
+    const visibleStreams = getFilteredSortedStreams();
+
+    if (streams.size === 0) {
+      destroyAllCharts();
+      renderEmptyState(
+        "Waiting for iperfer streams",
+        `No throughput samples have been received under ${DATABASE_BRANCH} yet.`
+      );
+      return;
+    }
+
+    if (visibleStreams.length === 0) {
+      renderEmptyState(
+        "No matching streams",
+        "No stream code or interface name matches your filter."
+      );
+      return;
+    }
+
+    const existingEmpty = streamsGrid.querySelector(".empty-state");
+    if (existingEmpty) {
+      streamsGrid.innerHTML = "";
+      cardByCode.clear();
+      chartByCode.clear();
+    }
+
+    const visibleCodes = new Set(visibleStreams.map(stream => stream.code));
+
+    for (const [code, card] of cardByCode.entries()) {
+      if (!visibleCodes.has(code)) {
+        const chart = chartByCode.get(code);
+        if (chart) {
+          chart.destroy();
+        }
+
+        chartByCode.delete(code);
+        cardByCode.delete(code);
+        card.remove();
+      }
+    }
+
+    for (const stream of visibleStreams) {
+      if (!cardByCode.has(stream.code)) {
+        createStreamCard(stream);
+      }
+
+      const card = cardByCode.get(stream.code);
+      streamsGrid.appendChild(card);
+
+      updateStreamCard(stream);
+      updateChart(stream);
+    }
+  }
+
+  function destroyAllCharts() {
+    for (const chart of chartByCode.values()) {
+      chart.destroy();
+    }
+
+    chartByCode.clear();
+    cardByCode.clear();
+  }
+
+  function updateStreamColor(code, color) {
+    colorsByCode[code] = color;
+    saveColorPreferences();
+
+    const stream = streams.get(code);
+
+    if (stream) {
+      stream.color = color;
+      updateStreamCard(stream);
+      updateChart(stream);
+      showToast(`Color updated for ${code}.`);
+    }
+  }
+
+  async function deleteStream(code) {
+    const stream = streams.get(code);
+
+    if (!stream) {
+      return;
+    }
+
+    const confirmed = confirm(
+      `Delete all received samples for stream "${code}" from Firebase branch "${DATABASE_BRANCH}"?`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      const matchingSamples = allSamples.filter(sample => sample.streamCode === code);
+
+      await Promise.all(
+        matchingSamples.map(sample => {
+          return remove(ref(db, `${DATABASE_BRANCH}/${sample.key}`));
+        })
+      );
+
+      showToast(`Deleted ${matchingSamples.length} samples for ${code}.`);
+    } catch (error) {
+      showToast(`Delete failed: ${error.message}`);
+    }
+  }
+
+  async function deleteAllStreams() {
+    if (allSamples.length === 0) {
+      showToast("No samples to delete.");
+      return;
+    }
+
+    const confirmed = confirm(
+      `Delete ALL ${allSamples.length} received samples from Firebase branch "${DATABASE_BRANCH}"?`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await remove(ref(db, DATABASE_BRANCH));
+      showToast("All stream samples deleted.");
+    } catch (error) {
+      showToast(`Delete failed: ${error.message}`);
+    }
+  }
+
+  onValue(
+    streamsQuery,
+    snapshot => {
+      connectionStatus.textContent = "Live";
+
+      const data = snapshot.val();
+
+      if (!data) {
+        allSamples = [];
+        streams = new Map();
+        updateTopStats();
+        renderStreams();
+        previousSampleCount = 0;
+        return;
+      }
+
+      allSamples = Object.entries(data)
+        .map(([key, value]) => normalizeSample(key, value))
+        .sort((a, b) => a.sentAt - b.sentAt);
+
+      streams = groupSamplesByStream(allSamples);
+
+      updateTopStats();
+      renderStreams();
+
+      if (allSamples.length > previousSampleCount) {
+        const newCount = allSamples.length - previousSampleCount;
+
+        if (previousSampleCount !== 0) {
+          showToast(`Received ${newCount} new throughput sample${newCount === 1 ? "" : "s"}.`);
+        }
+      }
+
+      previousSampleCount = allSamples.length;
+    },
+    error => {
+      connectionStatus.textContent = "Error";
+      renderEmptyState("Connection error", error.message);
+      showToast(`Firebase error: ${error.message}`);
+    }
+  );
+
+  searchInput.addEventListener("input", renderStreams);
+  sortSelect.addEventListener("change", renderStreams);
+
+  clearSearchButton.addEventListener("click", () => {
+    searchInput.value = "";
+    renderStreams();
+  });
+
+  deleteAllButton.addEventListener("click", deleteAllStreams);
+</script>
+
+</body>
+</html>
