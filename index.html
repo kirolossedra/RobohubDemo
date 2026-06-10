@@ -1028,38 +1028,143 @@
     return raw;
   }
 
-  function normalizeSample(key, value) {
-    const streamCode = firstNonEmpty(
+  function getHeaderValue(value, ...names) {
+    const headers = value?.headers || value?.header || value?.requestHeaders || {};
+
+    for (const name of names) {
+      const direct = headers?.[name];
+      if (direct !== undefined && direct !== null && String(direct).trim() !== "") {
+        return direct;
+      }
+
+      const lower = String(name).toLowerCase();
+      const matchedKey = Object.keys(headers).find(key => String(key).toLowerCase() === lower);
+
+      if (matchedKey && String(headers[matchedKey]).trim() !== "") {
+        return headers[matchedKey];
+      }
+    }
+
+    return null;
+  }
+
+  function makeCompositeIdentity(parts) {
+    const seen = new Set();
+    const cleanParts = [];
+
+    for (const [label, rawValue] of parts) {
+      if (rawValue === undefined || rawValue === null) {
+        continue;
+      }
+
+      const value = String(rawValue).trim();
+
+      if (!value) {
+        continue;
+      }
+
+      const part = `${label}:${value}`;
+
+      if (!seen.has(part)) {
+        seen.add(part);
+        cleanParts.push(part);
+      }
+    }
+
+    return cleanParts.join(" | ");
+  }
+
+  function resolveStreamIdentity(key, value) {
+    // IMPORTANT:
+    // Do not use sendingInterface before probingInterface.
+    // The sending interface can be the same internet adapter for multiple streams,
+    // which merges different probes into one plotted curve.
+    const explicitStreamCode = firstNonEmpty(
       value?.streamCode,
       value?.stream_code,
-      value?.stream,
+      value?.streamId,
+      value?.stream_id,
+      value?.streamID,
+      value?.seriesCode,
+      value?.series_code,
+      value?.plotCode,
+      value?.plot_code,
       value?.interfaceCode,
       value?.interface_code,
-      value?.interfaceName,
-      value?.interface_name,
-      value?.ifaceName,
-      value?.iface,
-      value?.sendingInterface,
-      value?.sending_interface,
-      value?.probingInterface,
-      value?.probing_interface,
-      value?.sensorId,
-      value?.sensor_id,
-      value?.code,
-      value?.headers?.streamCode,
-      value?.headers?.interfaceName,
-      "unknown_stream"
+      value?.probeCode,
+      value?.probe_code,
+      getHeaderValue(value, "streamCode", "stream-code", "x-stream-code", "interfaceCode", "interface-code", "x-interface-code")
     );
 
+    if (explicitStreamCode) {
+      return {
+        code: String(explicitStreamCode).trim(),
+        source: "explicit_stream_code"
+      };
+    }
+
+    // If the sender does not provide streamCode, the measured/probing interface is the next-safe identity.
+    // This prevents two probes from being collapsed just because they share the same sending interface.
+    const probingIdentity = firstNonEmpty(
+      value?.probingInterface,
+      value?.probing_interface,
+      value?.probeInterface,
+      value?.probe_interface,
+      value?.measuredInterface,
+      value?.measured_interface,
+      value?.testInterface,
+      value?.test_interface,
+      getHeaderValue(value, "probingInterface", "probing-interface", "x-probing-interface", "measuredInterface", "measured-interface", "x-measured-interface")
+    );
+
+    if (probingIdentity) {
+      return {
+        code: String(probingIdentity).trim(),
+        source: "probing_interface"
+      };
+    }
+
+    const compositeIdentity = makeCompositeIdentity([
+      ["interface", firstNonEmpty(value?.interfaceName, value?.interface_name, value?.interface, value?.ifaceName, value?.iface, getHeaderValue(value, "interfaceName", "interface-name", "x-interface-name"))],
+      ["client", firstNonEmpty(value?.clientId, value?.client_id, value?.clientName, value?.client_name, value?.deviceId, value?.device_id, value?.deviceName, value?.device_name, value?.host, value?.hostname, value?.hostName)],
+      ["target", firstNonEmpty(value?.targetIp, value?.target_ip, value?.ipAddress, value?.ip_address, value?.serverIp, value?.server_ip, value?.server, value?.destination)],
+      ["port", firstNonEmpty(value?.port, value?.serverPort, value?.server_port, value?.iperfPort, value?.iperf_port)],
+      ["sender", firstNonEmpty(value?.sendingInterface, value?.sending_interface, value?.sendInterface, value?.send_interface)]
+    ]);
+
+    if (compositeIdentity) {
+      return {
+        code: compositeIdentity,
+        source: "composite_identity"
+      };
+    }
+
+    // Last-resort safety: never collapse unrelated samples into a single unknown_stream.
+    // If there is truly no identity field, keep the record isolated instead of silently merging it.
+    return {
+      code: `record:${key}`,
+      source: "firebase_record_key"
+    };
+  }
+
+  function normalizeSample(key, value) {
+    const identity = resolveStreamIdentity(key, value);
+
     const interfaceName = firstNonEmpty(
+      value?.probingInterface,
+      value?.probing_interface,
+      value?.probeInterface,
+      value?.probe_interface,
+      value?.measuredInterface,
+      value?.measured_interface,
+      value?.testInterface,
+      value?.test_interface,
       value?.interfaceName,
       value?.interface_name,
       value?.interface,
       value?.ifaceName,
       value?.iface,
-      value?.probingInterface,
-      value?.probing_interface,
-      streamCode
+      identity.code
     );
 
     const throughputMbps =
@@ -1082,7 +1187,8 @@
     return {
       key,
       raw: value,
-      streamCode: String(streamCode),
+      streamCode: identity.code,
+      streamIdentitySource: identity.source,
       interfaceName: String(interfaceName),
       throughputMbps,
       sentAt
