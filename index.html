@@ -4,18 +4,18 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>Iperfer Live Throughput Streams</title>
+<title>Iperfer Combined Live Throughput Plot</title>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 
 <style>
   :root {
     --bg-main: #050816;
-    --bg-panel: rgba(15, 23, 42, 0.82);
+    --bg-panel: rgba(15, 23, 42, 0.84);
     --bg-panel-solid: #0f172a;
-    --bg-soft: rgba(30, 41, 59, 0.68);
-    --border: rgba(148, 163, 184, 0.22);
-    --border-strong: rgba(148, 163, 184, 0.42);
+    --bg-soft: rgba(30, 41, 59, 0.70);
+    --border: rgba(148, 163, 184, 0.24);
+    --border-strong: rgba(148, 163, 184, 0.46);
     --text-main: #e5e7eb;
     --text-muted: #94a3b8;
     --text-soft: #cbd5e1;
@@ -40,9 +40,9 @@
     color: var(--text-main);
     font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
     background:
-      radial-gradient(circle at top left, rgba(56, 189, 248, 0.22), transparent 34%),
-      radial-gradient(circle at top right, rgba(167, 139, 250, 0.18), transparent 30%),
-      radial-gradient(circle at bottom left, rgba(34, 197, 94, 0.10), transparent 36%),
+      radial-gradient(circle at top left, rgba(56, 189, 248, 0.24), transparent 34%),
+      radial-gradient(circle at top right, rgba(167, 139, 250, 0.20), transparent 30%),
+      radial-gradient(circle at bottom left, rgba(34, 197, 94, 0.11), transparent 36%),
       linear-gradient(135deg, #020617 0%, #08111f 42%, #111827 100%);
     overflow-x: hidden;
   }
@@ -53,8 +53,8 @@
     inset: 0;
     pointer-events: none;
     background-image:
-      linear-gradient(rgba(255,255,255,0.032) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255,255,255,0.032) 1px, transparent 1px);
+      linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
     background-size: 48px 48px;
     mask-image: linear-gradient(to bottom, black, transparent 88%);
   }
@@ -63,7 +63,7 @@
     width: calc(100% - 24px);
     max-width: none;
     margin: 0 auto;
-    padding: 28px 0 40px;
+    padding: 24px 0 42px;
   }
 
   .hero {
@@ -72,11 +72,11 @@
     border: 1px solid var(--border);
     border-radius: var(--radius-xl);
     background:
-      linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(30, 41, 59, 0.74)),
+      linear-gradient(135deg, rgba(15, 23, 42, 0.94), rgba(30, 41, 59, 0.76)),
       radial-gradient(circle at 10% 20%, rgba(56,189,248,0.25), transparent 28%),
       radial-gradient(circle at 90% 20%, rgba(167,139,250,0.23), transparent 28%);
     box-shadow: var(--card-shadow);
-    padding: 30px;
+    padding: 28px;
     backdrop-filter: blur(18px);
   }
 
@@ -96,7 +96,7 @@
     position: relative;
     z-index: 1;
     display: grid;
-    grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+    grid-template-columns: minmax(0, 1.35fr) minmax(360px, 0.65fr);
     gap: 28px;
     align-items: center;
   }
@@ -105,19 +105,19 @@
     display: inline-flex;
     align-items: center;
     gap: 10px;
-    padding: 8px 13px;
+    padding: 9px 14px;
     border-radius: 999px;
-    border: 1px solid rgba(148, 163, 184, 0.26);
-    background: rgba(15, 23, 42, 0.64);
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    background: rgba(15, 23, 42, 0.66);
     color: #dbeafe;
-    font-size: 13px;
-    font-weight: 800;
-    letter-spacing: 0.25px;
+    font-size: 14px;
+    font-weight: 950;
+    letter-spacing: 0.28px;
   }
 
   .pulse-dot {
-    width: 9px;
-    height: 9px;
+    width: 10px;
+    height: 10px;
     border-radius: 50%;
     background: var(--success);
     box-shadow: 0 0 0 rgba(34,197,94,0.9);
@@ -132,36 +132,39 @@
 
   h1 {
     margin: 18px 0 0;
-    font-size: clamp(34px, 5vw, 62px);
+    font-size: clamp(38px, 5vw, 68px);
     line-height: 0.96;
     letter-spacing: -2px;
   }
 
   .hero-copy {
-    max-width: 980px;
+    max-width: 1100px;
     margin: 18px 0 0;
-    color: rgba(226, 232, 240, 0.78);
+    color: rgba(226, 232, 240, 0.82);
     line-height: 1.75;
-    font-size: 16px;
+    font-size: 17px;
+    font-weight: 650;
   }
 
   .endpoint-card {
-    border: 1px solid rgba(148, 163, 184, 0.22);
+    border: 1px solid rgba(148, 163, 184, 0.24);
     border-radius: var(--radius-lg);
-    background: rgba(2, 6, 23, 0.66);
+    background: rgba(2, 6, 23, 0.68);
     padding: 18px;
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
   }
 
   .endpoint-card h2 {
     margin: 0 0 8px;
-    font-size: 16px;
+    font-size: 17px;
+    font-weight: 950;
   }
 
   .endpoint-card p {
     margin: 0 0 12px;
     color: var(--text-muted);
-    font-size: 13px;
+    font-size: 14px;
+    font-weight: 700;
     line-height: 1.6;
   }
 
@@ -174,14 +177,15 @@
     border: 1px solid rgba(148, 163, 184, 0.16);
     color: #bae6fd;
     font-family: Consolas, Monaco, "Courier New", monospace;
-    font-size: 12.5px;
-    line-height: 1.6;
+    font-size: 13px;
+    font-weight: 800;
+    line-height: 1.62;
     white-space: pre;
   }
 
   .stats-grid {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 16px;
     margin: 20px 0;
   }
@@ -199,29 +203,30 @@
   .stat-label {
     color: var(--text-muted);
     font-size: 12px;
-    font-weight: 800;
+    font-weight: 950;
     text-transform: uppercase;
-    letter-spacing: 0.6px;
+    letter-spacing: 0.65px;
   }
 
   .stat-value {
     margin-top: 12px;
-    font-size: 28px;
-    font-weight: 900;
-    letter-spacing: -0.7px;
+    font-size: 30px;
+    font-weight: 1000;
+    letter-spacing: -0.75px;
   }
 
   .stat-small {
     margin-top: 9px;
     color: var(--text-muted);
-    font-size: 12px;
+    font-size: 13px;
+    font-weight: 700;
     line-height: 1.45;
   }
 
   .toolbar {
     border: 1px solid var(--border);
     border-radius: var(--radius-xl);
-    background: rgba(15, 23, 42, 0.74);
+    background: rgba(15, 23, 42, 0.76);
     box-shadow: var(--card-shadow);
     backdrop-filter: blur(18px);
     padding: 16px;
@@ -242,217 +247,130 @@
   }
 
   .input,
-  .select,
-  .name-input {
+  .select {
     color: var(--text-main);
-    background: rgba(2, 6, 23, 0.58);
+    background: rgba(2, 6, 23, 0.60);
     border: 1px solid var(--border);
     border-radius: 999px;
-    padding: 11px 14px;
+    padding: 12px 15px;
     outline: none;
-    min-height: 42px;
+    min-height: 46px;
+    font-size: 15px;
+    font-weight: 850;
   }
 
   .input {
-    width: 280px;
-  }
-
-  .name-input {
-    width: min(360px, 100%);
-    border-radius: 14px;
-    min-height: 38px;
-    padding: 9px 12px;
+    width: 320px;
   }
 
   .input:focus,
-  .select:focus,
-  .name-input:focus {
-    border-color: rgba(56, 189, 248, 0.75);
+  .select:focus {
+    border-color: rgba(56, 189, 248, 0.78);
     box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.12);
   }
 
   .button {
-    border: 1px solid rgba(148, 163, 184, 0.26);
+    border: 1px solid rgba(148, 163, 184, 0.28);
     border-radius: 999px;
     background: rgba(56, 189, 248, 0.14);
     color: #e0f2fe;
-    padding: 11px 15px;
+    padding: 12px 16px;
     cursor: pointer;
-    font-weight: 900;
+    font-size: 15px;
+    font-weight: 1000;
     transition: 0.18s ease;
-    min-height: 42px;
+    min-height: 46px;
   }
 
-  .button:hover {
+  .button:hover:not(:disabled) {
     transform: translateY(-1px);
-    border-color: rgba(56, 189, 248, 0.58);
-    background: rgba(56, 189, 248, 0.20);
+    border-color: rgba(56, 189, 248, 0.62);
+    background: rgba(56, 189, 248, 0.22);
+  }
+
+  .button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .button-success {
+    color: #dcfce7;
+    background: rgba(34, 197, 94, 0.15);
+  }
+
+  .button-success:hover:not(:disabled) {
+    border-color: rgba(34, 197, 94, 0.62);
+    background: rgba(34, 197, 94, 0.23);
+  }
+
+  .button-warning {
+    color: #fef3c7;
+    background: rgba(245, 158, 11, 0.15);
+  }
+
+  .button-warning:hover:not(:disabled) {
+    border-color: rgba(245, 158, 11, 0.62);
+    background: rgba(245, 158, 11, 0.23);
   }
 
   .button-danger {
     color: #fecaca;
-    background: rgba(239, 68, 68, 0.12);
+    background: rgba(239, 68, 68, 0.13);
   }
 
-  .button-danger:hover {
-    border-color: rgba(239, 68, 68, 0.58);
-    background: rgba(239, 68, 68, 0.20);
+  .button-danger:hover:not(:disabled) {
+    border-color: rgba(239, 68, 68, 0.62);
+    background: rgba(239, 68, 68, 0.22);
   }
 
   .button-muted {
     color: #cbd5e1;
-    background: rgba(148, 163, 184, 0.10);
+    background: rgba(148, 163, 184, 0.11);
   }
 
-  .streams-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 22px;
-  }
-
-  .stream-card {
-    position: relative;
-    overflow: hidden;
-    width: 100%;
+  .plot-card,
+  .streams-panel {
     border: 1px solid var(--border);
     border-radius: var(--radius-xl);
     background:
-      linear-gradient(180deg, rgba(15, 23, 42, 0.92), rgba(2, 6, 23, 0.82)),
+      linear-gradient(180deg, rgba(15, 23, 42, 0.94), rgba(2, 6, 23, 0.84)),
       radial-gradient(circle at top left, rgba(56,189,248,0.12), transparent 32%);
     box-shadow: var(--card-shadow);
     backdrop-filter: blur(18px);
+    overflow: hidden;
   }
 
-  .stream-card::before {
-    content: "";
-    position: absolute;
-    inset: 0 0 auto 0;
-    height: 3px;
-    background: var(--stream-color, #38bdf8);
-  }
-
-  .stream-header {
+  .plot-header,
+  .panel-header {
     display: flex;
-    align-items: flex-start;
     justify-content: space-between;
-    gap: 14px;
-    padding: 18px 18px 12px;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+    gap: 16px;
+    align-items: flex-start;
+    padding: 20px 22px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.17);
   }
 
-  .stream-title-wrap {
-    min-width: 0;
-  }
-
-  .stream-title {
+  .plot-title,
+  .panel-title {
     margin: 0;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 22px;
-    letter-spacing: -0.4px;
+    font-size: 25px;
+    font-weight: 1000;
+    letter-spacing: -0.55px;
   }
 
-  .stream-title-name {
-    overflow-wrap: anywhere;
-  }
-
-  .stream-dot {
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: var(--stream-color, #38bdf8);
-    box-shadow: 0 0 24px var(--stream-color, #38bdf8);
-    flex: 0 0 auto;
-  }
-
-  .stream-subtitle {
-    margin: 6px 0 0;
+  .plot-subtitle,
+  .panel-subtitle {
+    margin: 7px 0 0;
     color: var(--text-muted);
-    font-size: 12.5px;
+    font-size: 14px;
+    font-weight: 760;
     line-height: 1.55;
-    word-break: break-word;
-  }
-
-  .stream-controls {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    max-width: min(780px, 100%);
-  }
-
-  .color-picker {
-    width: 46px;
-    height: 38px;
-    padding: 4px;
-    border-radius: 12px;
-    border: 1px solid var(--border);
-    background: rgba(2, 6, 23, 0.55);
-    cursor: pointer;
-  }
-
-  .mini-button {
-    border: 1px solid rgba(148, 163, 184, 0.23);
-    border-radius: 12px;
-    background: rgba(148, 163, 184, 0.10);
-    color: var(--text-soft);
-    min-height: 38px;
-    padding: 8px 10px;
-    font-weight: 900;
-    cursor: pointer;
-    transition: 0.16s ease;
-  }
-
-  .mini-button:hover {
-    background: rgba(148, 163, 184, 0.16);
-  }
-
-  .mini-button.danger {
-    color: #fecaca;
-    background: rgba(239, 68, 68, 0.10);
-  }
-
-  .mini-button.danger:hover {
-    background: rgba(239, 68, 68, 0.18);
-  }
-
-  .stream-metrics {
-    display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 10px;
-    padding: 14px 18px 0;
-  }
-
-  .metric-pill {
-    border: 1px solid rgba(148, 163, 184, 0.18);
-    border-radius: 16px;
-    background: rgba(15, 23, 42, 0.56);
-    padding: 12px;
-    min-width: 0;
-  }
-
-  .metric-label {
-    color: var(--text-muted);
-    font-size: 10.5px;
-    font-weight: 900;
-    text-transform: uppercase;
-    letter-spacing: 0.45px;
-  }
-
-  .metric-value {
-    margin-top: 7px;
-    font-size: 19px;
-    font-weight: 950;
-    letter-spacing: -0.45px;
-    white-space: nowrap;
   }
 
   .chart-shell {
-    padding: 12px 14px 16px;
-    height: 460px;
-    width: 100%;
+    height: min(72vh, 760px);
+    min-height: 520px;
+    padding: 12px 18px 22px;
   }
 
   .chart-shell canvas {
@@ -460,11 +378,163 @@
     height: 100% !important;
   }
 
+  .plot-legend-note {
+    padding: 0 22px 18px;
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 760;
+    line-height: 1.55;
+  }
+
+  .streams-panel {
+    margin-top: 20px;
+  }
+
+  .stream-list {
+    padding: 16px;
+    display: grid;
+    gap: 12px;
+  }
+
+  .stream-row {
+    display: grid;
+    grid-template-columns: minmax(260px, 1.1fr) minmax(300px, 1.35fr) repeat(5, minmax(110px, 0.55fr)) minmax(190px, 0.75fr);
+    gap: 10px;
+    align-items: center;
+    border: 1px solid rgba(148, 163, 184, 0.19);
+    border-radius: 18px;
+    background: rgba(15, 23, 42, 0.58);
+    padding: 12px;
+  }
+
+  .stream-id {
+    min-width: 0;
+  }
+
+  .stream-name-line {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    min-width: 0;
+  }
+
+  .stream-dot {
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    background: var(--stream-color, #38bdf8);
+    box-shadow: 0 0 26px var(--stream-color, #38bdf8);
+    flex: 0 0 auto;
+  }
+
+  .stream-code {
+    font-size: 16px;
+    font-weight: 1000;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .stream-interface {
+    margin-top: 5px;
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 800;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .name-editor {
+    display: grid;
+    grid-template-columns: minmax(180px, 1fr) 52px 96px;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .name-input {
+    width: 100%;
+    border-radius: 13px;
+    padding: 10px 12px;
+    min-height: 42px;
+    color: var(--text-main);
+    background: rgba(2, 6, 23, 0.62);
+    border: 1px solid var(--border);
+    outline: none;
+    font-size: 14px;
+    font-weight: 850;
+  }
+
+  .name-input:focus {
+    border-color: rgba(56, 189, 248, 0.78);
+    box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.10);
+  }
+
+  .color-picker {
+    width: 52px;
+    height: 42px;
+    padding: 4px;
+    border-radius: 13px;
+    border: 1px solid var(--border);
+    background: rgba(2, 6, 23, 0.55);
+    cursor: pointer;
+  }
+
+  .mini-button {
+    border: 1px solid rgba(148, 163, 184, 0.24);
+    border-radius: 13px;
+    background: rgba(148, 163, 184, 0.11);
+    color: var(--text-soft);
+    min-height: 42px;
+    padding: 8px 11px;
+    font-size: 13px;
+    font-weight: 1000;
+    cursor: pointer;
+    transition: 0.16s ease;
+  }
+
+  .mini-button:hover {
+    background: rgba(148, 163, 184, 0.18);
+  }
+
+  .mini-button.danger {
+    color: #fecaca;
+    background: rgba(239, 68, 68, 0.11);
+  }
+
+  .mini-button.danger:hover {
+    background: rgba(239, 68, 68, 0.19);
+  }
+
+  .metric-pill {
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 14px;
+    background: rgba(2, 6, 23, 0.34);
+    padding: 10px;
+    min-width: 0;
+  }
+
+  .metric-label {
+    color: var(--text-muted);
+    font-size: 10.5px;
+    font-weight: 1000;
+    text-transform: uppercase;
+    letter-spacing: 0.45px;
+  }
+
+  .metric-value {
+    margin-top: 6px;
+    font-size: 17px;
+    font-weight: 1000;
+    letter-spacing: -0.35px;
+    white-space: nowrap;
+  }
+
   .empty-state {
     border: 1px dashed rgba(148, 163, 184, 0.34);
     border-radius: var(--radius-xl);
     background: rgba(15, 23, 42, 0.54);
-    padding: 50px 18px;
+    padding: 44px 18px;
     text-align: center;
     color: var(--text-muted);
     box-shadow: var(--card-shadow);
@@ -473,7 +543,14 @@
   .empty-state h2 {
     margin: 0 0 10px;
     color: var(--text-main);
-    font-size: 24px;
+    font-size: 26px;
+    font-weight: 1000;
+  }
+
+  .empty-state p {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 750;
   }
 
   .toast {
@@ -481,15 +558,17 @@
     right: 18px;
     bottom: 18px;
     display: none;
-    max-width: min(520px, calc(100% - 36px));
+    max-width: min(560px, calc(100% - 36px));
     border: 1px solid rgba(148, 163, 184, 0.28);
     border-radius: 18px;
-    background: rgba(2, 6, 23, 0.92);
+    background: rgba(2, 6, 23, 0.94);
     color: var(--text-main);
     box-shadow: var(--card-shadow);
     padding: 14px 16px;
     z-index: 30;
     backdrop-filter: blur(18px);
+    font-size: 15px;
+    font-weight: 850;
   }
 
   .toast.show {
@@ -506,7 +585,18 @@
     margin: 18px 4px 0;
     color: var(--text-muted);
     font-size: 13px;
+    font-weight: 720;
     line-height: 1.65;
+  }
+
+  @media (max-width: 1500px) {
+    .stream-row {
+      grid-template-columns: minmax(240px, 1fr) minmax(280px, 1.2fr) repeat(3, minmax(110px, 0.55fr));
+    }
+
+    .stream-actions {
+      grid-column: 1 / -1;
+    }
   }
 
   @media (max-width: 1180px) {
@@ -517,16 +607,24 @@
     .stats-grid {
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }
+
+    .stream-row {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .stream-actions {
+      grid-column: auto;
+    }
   }
 
-  @media (max-width: 720px) {
+  @media (max-width: 760px) {
     .page {
-      width: calc(100% - 20px);
-      padding-top: 14px;
+      width: min(100% - 18px, 1500px);
+      padding-top: 12px;
     }
 
     .hero {
-      padding: 22px;
+      padding: 21px;
     }
 
     .stats-grid {
@@ -542,22 +640,27 @@
       width: 100%;
     }
 
-    .stream-header {
+    .plot-header,
+    .panel-header {
       flex-direction: column;
     }
 
-    .stream-controls,
-    .name-input {
-      width: 100%;
-      justify-content: flex-start;
-    }
-
-    .stream-metrics {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-
     .chart-shell {
-      height: 340px;
+      height: 500px;
+      min-height: 500px;
+      padding: 8px 8px 18px;
+    }
+
+    .stream-row {
+      grid-template-columns: 1fr;
+    }
+
+    .name-editor {
+      grid-template-columns: 1fr 54px;
+    }
+
+    .name-editor .mini-button {
+      grid-column: 1 / -1;
     }
   }
 </style>
@@ -575,20 +678,17 @@
           Live Firebase Throughput Receiver
         </div>
 
-        <h1>Iperfer Stream Plotter</h1>
+        <h1>Combined Iperfer Plotter</h1>
 
         <p class="hero-copy">
-          This dashboard listens to the Firebase Realtime Database branch
-          <strong>iperf3_streams</strong>. As soon as a client-side iperfer agent pushes
-          throughput samples with an interface code, the website creates a full-width live plot for that stream.
-          Shared plot names and colors are stored under <strong>iperf3_stream_settings</strong>, so changing them
-          from one device updates the dashboard for everyone.
+          This dashboard keeps listening to <strong>iperf3_streams</strong>, but the plot stays frozen until you explicitly press
+          <strong>Start Plotting</strong>. All streams are drawn together on one shared 0–60 second axis, with per-stream max and ±STD guide lines.
         </p>
       </div>
 
       <div class="endpoint-card">
         <h2>POST endpoint</h2>
-        <p>Every client measurement agent pushes samples here. The interface being measured does not need internet; only the telemetry sender needs access to this Firebase endpoint.</p>
+        <p>Client agents keep pushing samples here. Stream names and colors are stored separately in Firebase so every device sees the same labels.</p>
 <pre class="code">POST https://test-c7bf3-default-rtdb.firebaseio.com/iperf3_streams.json
 
 {
@@ -611,21 +711,27 @@
     </div>
 
     <div class="stat-card">
-      <div class="stat-label">Active Streams</div>
-      <div class="stat-value" id="activeStreams">0</div>
-      <div class="stat-small">Unique interface stream codes</div>
+      <div class="stat-label">Plot State</div>
+      <div class="stat-value" id="plotStateLabel">Stopped</div>
+      <div class="stat-small" id="plotStateDetail">Receiving is active. Plotting has not started.</div>
     </div>
 
     <div class="stat-card">
-      <div class="stat-label">Total Samples</div>
+      <div class="stat-label">Active Streams</div>
+      <div class="stat-value" id="activeStreams">0</div>
+      <div class="stat-small">Unique stream codes received</div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-label">Received Samples</div>
       <div class="stat-value" id="totalSamples">0</div>
       <div class="stat-small">Records under iperf3_streams</div>
     </div>
 
     <div class="stat-card">
-      <div class="stat-label">Latest Stream</div>
-      <div class="stat-value" id="latestStream">—</div>
-      <div class="stat-small">Most recent received stream</div>
+      <div class="stat-label">Plotted Samples</div>
+      <div class="stat-value" id="plottedSamples">0</div>
+      <div class="stat-small">Samples currently visible in 0–60 s window</div>
     </div>
 
     <div class="stat-card">
@@ -637,32 +743,68 @@
 
   <section class="toolbar">
     <div class="toolbar-left">
-      <input id="searchInput" class="input" type="text" placeholder="Filter plot name, stream code, or interface name...">
+      <input id="searchInput" class="input" type="text" placeholder="Filter stream code, name, or interface...">
 
       <select id="sortSelect" class="select">
         <option value="latest">Sort by latest sample</option>
-        <option value="name">Sort by plot name</option>
+        <option value="name">Sort by display name</option>
         <option value="avg">Sort by average throughput</option>
         <option value="max">Sort by max throughput</option>
+        <option value="std">Sort by standard deviation</option>
       </select>
     </div>
 
     <div class="toolbar-right">
+      <button class="button button-success" id="startPlotButton">Start Plotting</button>
+      <button class="button button-warning" id="pausePlotButton" disabled>Pause Plotting</button>
+      <button class="button" id="resumePlotButton" disabled>Resume Plotting</button>
+      <button class="button button-muted" id="stopPlotButton" disabled>Stop & Clear Chart</button>
       <button class="button button-muted" id="clearSearchButton">Clear Filter</button>
       <button class="button button-danger" id="deleteAllButton">Delete All Streams</button>
     </div>
   </section>
 
-  <main id="streamsGrid" class="streams-grid">
-    <section class="empty-state">
-      <h2>Waiting for iperfer streams</h2>
-      <p>No throughput samples have been received under <strong>iperf3_streams</strong> yet.</p>
-    </section>
-  </main>
+  <section class="plot-card">
+    <div class="plot-header">
+      <div>
+        <h2 class="plot-title">Combined Throughput Plot</h2>
+        <p class="plot-subtitle">
+          X-axis is numeric seconds from <strong>0 to 60</strong>. The visible window resets every minute from the plotting start timestamp.
+        </p>
+      </div>
+      <div class="plot-subtitle" id="plotWindowLabel">Window: —</div>
+    </div>
+
+    <div class="chart-shell">
+      <canvas id="combinedChart"></canvas>
+    </div>
+
+    <div class="plot-legend-note">
+      Solid line = throughput. Short dashed line = per-stream max. Long dashed lines = average + STD and average − STD for that stream.
+    </div>
+  </section>
+
+  <section class="streams-panel">
+    <div class="panel-header">
+      <div>
+        <h2 class="panel-title">Stream Controls</h2>
+        <p class="panel-subtitle">
+          Rename and recolor each stream here. Saved names/colors are written to <strong>iperf3_stream_settings</strong>, so all dashboard devices receive the same names.
+        </p>
+      </div>
+    </div>
+
+    <main id="streamList" class="stream-list">
+      <section class="empty-state">
+        <h2>Waiting for iperfer streams</h2>
+        <p>No throughput samples have been received under <strong>iperf3_streams</strong> yet.</p>
+      </section>
+    </main>
+  </section>
 
   <p class="footer-note">
     Security note: this page exposes Firebase web configuration, which is normal for Firebase browser apps.
-    Access control depends on your Realtime Database rules. If public writes/deletes are allowed, anyone with the endpoint can submit, rename, recolor, or delete streams.
+    Access control depends on your Realtime Database rules. If public writes/deletes are allowed, anyone with the endpoint can submit, rename, recolor, or delete samples.
   </p>
 
 </div>
@@ -694,48 +836,67 @@
 
   const DATABASE_BRANCH = "iperf3_streams";
   const SETTINGS_BRANCH = "iperf3_stream_settings";
-  const MAX_POINTS_PER_STREAM = 260;
-  const ONE_MINUTE_MS = 60_000;
+  const PLOT_WINDOW_MS = 60_000;
+  const MAX_POINTS_PER_STREAM = 4000;
   const DEFAULT_COLORS = [
     "#38bdf8",
-    "#a78bfa",
+    "#f97316",
     "#22c55e",
-    "#f59e0b",
+    "#a78bfa",
     "#fb7185",
+    "#eab308",
     "#2dd4bf",
     "#60a5fa",
     "#e879f9",
-    "#f97316",
-    "#84cc16"
+    "#84cc16",
+    "#f43f5e",
+    "#14b8a6",
+    "#c084fc",
+    "#f59e0b",
+    "#06b6d4",
+    "#ef4444"
   ];
 
   const ChartJS = window.Chart;
 
-  ChartJS.defaults.color = "rgba(226, 232, 240, 0.78)";
-  ChartJS.defaults.borderColor = "rgba(148, 163, 184, 0.18)";
+  ChartJS.defaults.color = "rgba(226, 232, 240, 0.92)";
+  ChartJS.defaults.borderColor = "rgba(148, 163, 184, 0.22)";
   ChartJS.defaults.font.family = 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif';
+  ChartJS.defaults.font.size = 17;
+  ChartJS.defaults.font.weight = "bold";
 
   const app = initializeApp(firebaseConfig);
   const db = getDatabase(app);
 
   const connectionStatus = document.getElementById("connectionStatus");
+  const plotStateLabel = document.getElementById("plotStateLabel");
+  const plotStateDetail = document.getElementById("plotStateDetail");
   const activeStreams = document.getElementById("activeStreams");
   const totalSamples = document.getElementById("totalSamples");
-  const latestStream = document.getElementById("latestStream");
+  const plottedSamples = document.getElementById("plottedSamples");
   const lastUpdated = document.getElementById("lastUpdated");
-  const streamsGrid = document.getElementById("streamsGrid");
+  const plotWindowLabel = document.getElementById("plotWindowLabel");
+  const streamList = document.getElementById("streamList");
   const searchInput = document.getElementById("searchInput");
   const sortSelect = document.getElementById("sortSelect");
   const clearSearchButton = document.getElementById("clearSearchButton");
   const deleteAllButton = document.getElementById("deleteAllButton");
+  const startPlotButton = document.getElementById("startPlotButton");
+  const pausePlotButton = document.getElementById("pausePlotButton");
+  const resumePlotButton = document.getElementById("resumePlotButton");
+  const stopPlotButton = document.getElementById("stopPlotButton");
   const toast = document.getElementById("toast");
 
   let allSamples = [];
   let streams = new Map();
-  let streamSettings = {};
-  let chartByCode = new Map();
-  let cardByCode = new Map();
+  let settingsByCode = new Map();
+  let rowByCode = new Map();
   let previousSampleCount = 0;
+  let combinedChart = null;
+
+  let plotMode = "stopped";
+  let plotStartTimestamp = null;
+  let lastPlottedCount = 0;
 
   const streamsQuery = query(
     ref(db, DATABASE_BRANCH),
@@ -751,46 +912,67 @@
       .replaceAll("'", "&#039;");
   }
 
-  function firebaseSafeKey(value) {
-    return btoa(unescape(encodeURIComponent(String(value))))
+  function encodeFirebaseKey(value) {
+    const utf8 = encodeURIComponent(String(value))
+      .replace(/%([0-9A-F]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+
+    return btoa(utf8)
       .replaceAll("+", "-")
       .replaceAll("/", "_")
-      .replaceAll("=", "");
+      .replace(/=+$/g, "");
   }
 
-  function getDefaultColor(index) {
-    return DEFAULT_COLORS[index % DEFAULT_COLORS.length];
+  function hashString(value) {
+    let hash = 0;
+    const text = String(value);
+
+    for (let index = 0; index < text.length; index += 1) {
+      hash = ((hash << 5) - hash) + text.charCodeAt(index);
+      hash |= 0;
+    }
+
+    return Math.abs(hash);
+  }
+
+  function getDefaultColor(code) {
+    return DEFAULT_COLORS[hashString(code) % DEFAULT_COLORS.length];
   }
 
   function isValidHexColor(value) {
-    return /^#[0-9a-fA-F]{6}$/.test(String(value ?? ""));
+    return /^#[0-9A-Fa-f]{6}$/.test(String(value ?? ""));
   }
 
-  function getStreamSetting(code) {
-    return streamSettings[firebaseSafeKey(code)] ?? {};
+  function getStreamSettings(code) {
+    const saved = settingsByCode.get(code) || {};
+    const displayName = String(saved.displayName || saved.name || code);
+    const color = isValidHexColor(saved.color) ? saved.color : getDefaultColor(code);
+
+    return { displayName, color };
   }
 
-  function getStreamDisplayName(code) {
-    const displayName = getStreamSetting(code).displayName;
+  function hexToRgba(hex, alpha) {
+    const clean = String(hex).replace("#", "");
 
-    if (typeof displayName === "string" && displayName.trim()) {
-      return displayName.trim();
+    if (clean.length !== 6) {
+      return `rgba(56, 189, 248, ${alpha})`;
     }
 
-    return String(code);
+    const r = parseInt(clean.slice(0, 2), 16);
+    const g = parseInt(clean.slice(2, 4), 16);
+    const b = parseInt(clean.slice(4, 6), 16);
+
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   }
 
-  function getStreamColor(code, index = 0) {
-    const sharedColor = getStreamSetting(code).color;
-
-    if (isValidHexColor(sharedColor)) {
-      return sharedColor;
-    }
-
-    return getDefaultColor(index);
+  function formatDashboardTime() {
+    return new Date().toLocaleTimeString(undefined, {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit"
+    });
   }
 
-  function formatDateTime(timestamp) {
+  function formatClock(timestamp) {
     if (!timestamp) {
       return "—";
     }
@@ -801,17 +983,7 @@
       return "—";
     }
 
-    return date.toLocaleString(undefined, {
-      month: "short",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit"
-    });
-  }
-
-  function formatDashboardTime() {
-    return new Date().toLocaleTimeString(undefined, {
+    return date.toLocaleTimeString(undefined, {
       hour: "2-digit",
       minute: "2-digit",
       second: "2-digit"
@@ -888,38 +1060,6 @@
     return { current, avg, max, std, count };
   }
 
-  function getElapsedSecondInMinute(sampleTimestamp, startTimestamp) {
-    if (!startTimestamp) {
-      return 0;
-    }
-
-    const elapsedMs = Math.max(0, Number(sampleTimestamp) - Number(startTimestamp));
-    return (elapsedMs % ONE_MINUTE_MS) / 1000;
-  }
-
-  function getMinuteIndex(sampleTimestamp, startTimestamp) {
-    if (!startTimestamp) {
-      return 0;
-    }
-
-    const elapsedMs = Math.max(0, Number(sampleTimestamp) - Number(startTimestamp));
-    return Math.floor(elapsedMs / ONE_MINUTE_MS);
-  }
-
-  function getCurrentMinuteSamples(streamSamples) {
-    if (streamSamples.length === 0) {
-      return [];
-    }
-
-    const startTimestamp = streamSamples[0].sentAt;
-    const latestTimestamp = streamSamples[streamSamples.length - 1].sentAt;
-    const activeMinuteIndex = getMinuteIndex(latestTimestamp, startTimestamp);
-
-    return streamSamples
-      .filter(sample => getMinuteIndex(sample.sentAt, startTimestamp) === activeMinuteIndex)
-      .slice(-MAX_POINTS_PER_STREAM);
-  }
-
   function groupSamplesByStream(samples) {
     const grouped = new Map();
 
@@ -932,30 +1072,25 @@
     }
 
     const streamMap = new Map();
-    let index = 0;
 
     for (const [code, streamSamples] of grouped.entries()) {
       streamSamples.sort((a, b) => a.sentAt - b.sentAt);
 
-      const latest = streamSamples[streamSamples.length - 1];
-      const startTimestamp = streamSamples[0]?.sentAt ?? latest?.sentAt ?? Date.now();
-      const currentMinuteSamples = getCurrentMinuteSamples(streamSamples);
-      const stats = computeStats(currentMinuteSamples);
+      const trimmedSamples = streamSamples.slice(-MAX_POINTS_PER_STREAM);
+      const latest = trimmedSamples[trimmedSamples.length - 1];
+      const stats = computeStats(trimmedSamples);
+      const settings = getStreamSettings(code);
 
       streamMap.set(code, {
         code,
-        displayName: getStreamDisplayName(code),
+        displayName: settings.displayName,
         interfaceName: latest?.interfaceName ?? code,
-        color: getStreamColor(code, index),
-        samples: currentMinuteSamples,
+        color: settings.color,
+        samples: trimmedSamples,
         allKeys: streamSamples.map(sample => sample.key),
-        startTimestamp,
         latestTimestamp: latest?.sentAt ?? 0,
-        minuteIndex: getMinuteIndex(latest?.sentAt ?? startTimestamp, startTimestamp),
         stats
       });
-
-      index += 1;
     }
 
     return streamMap;
@@ -969,8 +1104,8 @@
     if (term) {
       list = list.filter(stream => {
         return (
-          stream.displayName.toLowerCase().includes(term) ||
           stream.code.toLowerCase().includes(term) ||
+          stream.displayName.toLowerCase().includes(term) ||
           stream.interfaceName.toLowerCase().includes(term)
         );
       });
@@ -984,6 +1119,8 @@
       list.sort((a, b) => b.stats.avg - a.stats.avg);
     } else if (sortMode === "max") {
       list.sort((a, b) => b.stats.max - a.stats.max);
+    } else if (sortMode === "std") {
+      list.sort((a, b) => b.stats.std - a.stats.std);
     } else {
       list.sort((a, b) => b.latestTimestamp - a.latestTimestamp);
     }
@@ -991,19 +1128,13 @@
     return list;
   }
 
-  function updateTopStats() {
-    activeStreams.textContent = streams.size;
-    totalSamples.textContent = allSamples.length;
-
-    const newest = [...allSamples].sort((a, b) => b.sentAt - a.sentAt)[0];
-
-    if (newest) {
-      latestStream.textContent = getStreamDisplayName(newest.streamCode);
-    } else {
-      latestStream.textContent = "—";
-    }
-
-    lastUpdated.textContent = formatDashboardTime();
+  function renderEmptyState(title, body) {
+    streamList.innerHTML = `
+      <section class="empty-state">
+        <h2>${escapeHtml(title)}</h2>
+        <p>${escapeHtml(body)}</p>
+      </section>
+    `;
   }
 
   function showToast(message) {
@@ -1016,229 +1147,102 @@
     }, 3200);
   }
 
-  function renderEmptyState(title, body) {
-    streamsGrid.innerHTML = `
-      <section class="empty-state">
-        <h2>${escapeHtml(title)}</h2>
-        <p>${escapeHtml(body)}</p>
-      </section>
-    `;
+  function updateTopStats() {
+    activeStreams.textContent = streams.size;
+    totalSamples.textContent = allSamples.length;
+    plottedSamples.textContent = lastPlottedCount;
+    lastUpdated.textContent = formatDashboardTime();
+    updatePlotStateUi();
   }
 
-  function createStreamCard(stream) {
-    const domId = firebaseSafeKey(stream.code);
-
-    const card = document.createElement("section");
-    card.className = "stream-card";
-    card.dataset.streamCode = stream.code;
-    card.style.setProperty("--stream-color", stream.color);
-
-    card.innerHTML = `
-      <div class="stream-header">
-        <div class="stream-title-wrap">
-          <h2 class="stream-title">
-            <span class="stream-dot"></span>
-            <span class="stream-title-name" data-role="display-name">${escapeHtml(stream.displayName)}</span>
-          </h2>
-          <div class="stream-subtitle">
-            Code: <strong>${escapeHtml(stream.code)}</strong>
-            · Interface: <strong>${escapeHtml(stream.interfaceName)}</strong>
-            · Minute: <span data-role="minute-index">${stream.minuteIndex + 1}</span>
-            · Latest: <span data-role="latest-time">${formatDateTime(stream.latestTimestamp)}</span>
-          </div>
-        </div>
-
-        <div class="stream-controls">
-          <input
-            class="name-input"
-            type="text"
-            value="${escapeHtml(stream.displayName)}"
-            maxlength="80"
-            title="Shared plot name"
-            data-action="name"
-          >
-
-          <button class="mini-button" data-action="save-name">Save Name</button>
-
-          <input
-            class="color-picker"
-            type="color"
-            value="${escapeHtml(stream.color)}"
-            title="Change shared plot color"
-            data-action="color"
-          >
-
-          <button class="mini-button" data-action="focus">Focus</button>
-          <button class="mini-button danger" data-action="delete">Delete Stream</button>
-        </div>
-      </div>
-
-      <div class="stream-metrics">
-        <div class="metric-pill">
-          <div class="metric-label">Current</div>
-          <div class="metric-value" data-role="current">0.000</div>
-        </div>
-
-        <div class="metric-pill">
-          <div class="metric-label">Average</div>
-          <div class="metric-value" data-role="avg">0.000</div>
-        </div>
-
-        <div class="metric-pill">
-          <div class="metric-label">Maximum</div>
-          <div class="metric-value" data-role="max">0.000</div>
-        </div>
-
-        <div class="metric-pill">
-          <div class="metric-label">Std Dev</div>
-          <div class="metric-value" data-role="std">0.000</div>
-        </div>
-
-        <div class="metric-pill">
-          <div class="metric-label">Samples</div>
-          <div class="metric-value" data-role="count">0</div>
-        </div>
-      </div>
-
-      <div class="chart-shell">
-        <canvas id="chart_${domId}"></canvas>
-      </div>
-    `;
-
-    const colorInput = card.querySelector('[data-action="color"]');
-    colorInput.addEventListener("change", event => {
-      updateStreamColor(stream.code, event.target.value);
-    });
-
-    const nameInput = card.querySelector('[data-action="name"]');
-    const saveNameButton = card.querySelector('[data-action="save-name"]');
-
-    const saveCurrentName = () => {
-      saveStreamName(stream.code, nameInput.value);
-    };
-
-    saveNameButton.addEventListener("click", saveCurrentName);
-
-    nameInput.addEventListener("keydown", event => {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        saveCurrentName();
-        nameInput.blur();
-      }
-    });
-
-    const deleteButton = card.querySelector('[data-action="delete"]');
-    deleteButton.addEventListener("click", () => {
-      deleteStream(stream.code);
-    });
-
-    const focusButton = card.querySelector('[data-action="focus"]');
-    focusButton.addEventListener("click", () => {
-      card.scrollIntoView({ behavior: "smooth", block: "center" });
-      card.animate(
-        [
-          { boxShadow: "0 0 0 0 rgba(56,189,248,0.0)" },
-          { boxShadow: "0 0 0 5px rgba(56,189,248,0.22)" },
-          { boxShadow: "0 24px 80px rgba(0,0,0,0.36)" }
-        ],
-        { duration: 900, easing: "ease-out" }
-      );
-    });
-
-    streamsGrid.appendChild(card);
-    cardByCode.set(stream.code, card);
-
-    createChart(stream);
-
-    return card;
-  }
-
-  function createChart(stream) {
-    const domId = firebaseSafeKey(stream.code);
-    const canvas = document.getElementById(`chart_${domId}`);
-
-    if (!canvas) {
+  function updatePlotStateUi() {
+    if (plotMode === "running") {
+      plotStateLabel.textContent = "Running";
+      plotStateDetail.textContent = `Started at ${formatClock(plotStartTimestamp)}. Chart updates are live.`;
+      startPlotButton.textContent = "Restart Plotting";
+      startPlotButton.disabled = false;
+      pausePlotButton.disabled = false;
+      resumePlotButton.disabled = true;
+      stopPlotButton.disabled = false;
       return;
     }
 
+    if (plotMode === "paused") {
+      plotStateLabel.textContent = "Paused";
+      plotStateDetail.textContent = `Started at ${formatClock(plotStartTimestamp)}. Receiving continues, chart is frozen.`;
+      startPlotButton.textContent = "Restart Plotting";
+      startPlotButton.disabled = false;
+      pausePlotButton.disabled = true;
+      resumePlotButton.disabled = false;
+      stopPlotButton.disabled = false;
+      return;
+    }
+
+    plotStateLabel.textContent = "Stopped";
+    plotStateDetail.textContent = "Receiving is active. Plotting has not started.";
+    startPlotButton.textContent = "Start Plotting";
+    startPlotButton.disabled = false;
+    pausePlotButton.disabled = true;
+    resumePlotButton.disabled = true;
+    stopPlotButton.disabled = true;
+  }
+
+  function createCombinedChart() {
+    const canvas = document.getElementById("combinedChart");
     const context = canvas.getContext("2d");
 
-    const gradient = context.createLinearGradient(0, 0, 0, canvas.offsetHeight || 460);
-    gradient.addColorStop(0, hexToRgba(stream.color, 0.34));
-    gradient.addColorStop(0.55, hexToRgba(stream.color, 0.10));
-    gradient.addColorStop(1, hexToRgba(stream.color, 0.00));
-
-    const chart = new ChartJS(context, {
+    combinedChart = new ChartJS(context, {
       type: "line",
       data: {
-        datasets: [
-          {
-            label: `${stream.displayName} throughput`,
-            data: [],
-            borderColor: stream.color,
-            backgroundColor: gradient,
-            fill: true,
-            borderWidth: 2.7,
-            pointRadius: 0,
-            pointHoverRadius: 5,
-            pointHitRadius: 14,
-            tension: 0.36
-          },
-          {
-            label: "Average",
-            data: [],
-            borderColor: "rgba(226, 232, 240, 0.72)",
-            borderWidth: 1.6,
-            borderDash: [7, 7],
-            pointRadius: 0,
-            fill: false,
-            tension: 0
-          },
-          {
-            label: "Max",
-            data: [],
-            borderColor: "rgba(34, 197, 94, 0.72)",
-            borderWidth: 1.15,
-            borderDash: [2, 6],
-            pointRadius: 0,
-            fill: false,
-            tension: 0
-          }
-        ]
+        datasets: []
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        parsing: false,
         animation: {
-          duration: 260
+          duration: 180
         },
         interaction: {
-          mode: "index",
+          mode: "nearest",
           intersect: false
         },
-        parsing: false,
         plugins: {
           legend: {
             display: true,
+            position: "top",
             labels: {
               usePointStyle: true,
-              boxWidth: 8,
-              boxHeight: 8,
-              padding: 16
+              boxWidth: 11,
+              boxHeight: 11,
+              padding: 18,
+              color: "rgba(226, 232, 240, 0.96)",
+              font: {
+                size: 16,
+                weight: "bold"
+              }
             }
           },
           tooltip: {
-            backgroundColor: "rgba(2, 6, 23, 0.94)",
-            borderColor: "rgba(148, 163, 184, 0.28)",
+            backgroundColor: "rgba(2, 6, 23, 0.96)",
+            borderColor: "rgba(148, 163, 184, 0.34)",
             borderWidth: 1,
             titleColor: "#e5e7eb",
             bodyColor: "#cbd5e1",
-            padding: 12,
+            titleFont: {
+              size: 16,
+              weight: "bold"
+            },
+            bodyFont: {
+              size: 15,
+              weight: "bold"
+            },
+            padding: 13,
             displayColors: true,
             callbacks: {
-              title: context => {
-                const x = Number(context?.[0]?.parsed?.x ?? 0);
-                return `t = ${x.toFixed(1)} s`;
+              title: items => {
+                const x = Number(items?.[0]?.parsed?.x ?? 0);
+                return `${x.toFixed(1)} seconds`;
               },
               label: context => {
                 const value = Number(context.parsed?.y ?? 0);
@@ -1253,225 +1257,390 @@
             min: 0,
             max: 60,
             grid: {
-              color: "rgba(148, 163, 184, 0.10)"
+              color: "rgba(148, 163, 184, 0.16)",
+              lineWidth: 1.25
+            },
+            border: {
+              color: "rgba(226, 232, 240, 0.72)",
+              width: 2
             },
             ticks: {
-              stepSize: 5,
+              stepSize: 10,
+              color: "rgba(226, 232, 240, 0.96)",
+              font: {
+                size: 18,
+                weight: "bold"
+              },
               callback: value => `${value}s`
             },
             title: {
               display: true,
-              text: "Elapsed seconds in current minute"
+              text: "Time since current plotting-minute start (0–60 s)",
+              color: "rgba(226, 232, 240, 0.98)",
+              font: {
+                size: 21,
+                weight: "bold"
+              }
             }
           },
           y: {
             beginAtZero: true,
             grid: {
-              color: "rgba(148, 163, 184, 0.13)"
+              color: "rgba(148, 163, 184, 0.17)",
+              lineWidth: 1.25
+            },
+            border: {
+              color: "rgba(226, 232, 240, 0.72)",
+              width: 2
             },
             ticks: {
+              color: "rgba(226, 232, 240, 0.96)",
+              font: {
+                size: 18,
+                weight: "bold"
+              },
               callback: value => `${value} Mbps`
             },
             title: {
               display: true,
-              text: "Throughput"
+              text: "Throughput (Mbps)",
+              color: "rgba(226, 232, 240, 0.98)",
+              font: {
+                size: 21,
+                weight: "bold"
+              }
             }
           }
         }
       }
     });
-
-    chartByCode.set(stream.code, chart);
   }
 
-  function hexToRgba(hex, alpha) {
-    const clean = String(hex).replace("#", "");
-
-    if (clean.length !== 6) {
-      return `rgba(56, 189, 248, ${alpha})`;
+  function getCurrentPlotWindow(stream) {
+    if (!plotStartTimestamp) {
+      return {
+        windowStart: null,
+        windowEnd: null,
+        samples: []
+      };
     }
 
-    const r = parseInt(clean.slice(0, 2), 16);
-    const g = parseInt(clean.slice(2, 4), 16);
-    const b = parseInt(clean.slice(4, 6), 16);
+    const afterStart = stream.samples.filter(sample => sample.sentAt >= plotStartTimestamp);
 
-    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    if (afterStart.length === 0) {
+      return {
+        windowStart: plotStartTimestamp,
+        windowEnd: plotStartTimestamp + PLOT_WINDOW_MS,
+        samples: []
+      };
+    }
+
+    const latestTimestamp = afterStart[afterStart.length - 1].sentAt;
+    const minuteIndex = Math.max(0, Math.floor((latestTimestamp - plotStartTimestamp) / PLOT_WINDOW_MS));
+    const windowStart = plotStartTimestamp + (minuteIndex * PLOT_WINDOW_MS);
+    const windowEnd = windowStart + PLOT_WINDOW_MS;
+    const windowSamples = afterStart.filter(sample => sample.sentAt >= windowStart && sample.sentAt < windowEnd);
+
+    return {
+      windowStart,
+      windowEnd,
+      samples: windowSamples
+    };
   }
 
-  function updateStreamCard(stream) {
-    const card = cardByCode.get(stream.code);
+  function makeHorizontalDataset(label, yValue, color, dash, width = 2) {
+    return {
+      label,
+      data: [
+        { x: 0, y: yValue },
+        { x: 60, y: yValue }
+      ],
+      borderColor: color,
+      backgroundColor: color,
+      borderWidth: width,
+      borderDash: dash,
+      pointRadius: 0,
+      pointHoverRadius: 0,
+      pointHitRadius: 0,
+      fill: false,
+      tension: 0,
+      spanGaps: true
+    };
+  }
 
-    if (!card) {
+  function buildDatasetsForStream(stream, windowSamples) {
+    if (windowSamples.length === 0) {
+      return [];
+    }
+
+    const windowStats = computeStats(windowSamples);
+    const points = windowSamples.map(sample => ({
+      x: Math.min(60, Math.max(0, (sample.sentAt - getCurrentPlotWindow(stream).windowStart) / 1000)),
+      y: sample.throughputMbps
+    }));
+
+    const displayName = stream.displayName || stream.code;
+    const color = stream.color;
+    const plusStd = windowStats.avg + windowStats.std;
+    const minusStd = Math.max(0, windowStats.avg - windowStats.std);
+
+    return [
+      {
+        label: `${displayName} throughput`,
+        data: points,
+        borderColor: color,
+        backgroundColor: hexToRgba(color, 0.14),
+        borderWidth: 4,
+        pointRadius: 2.8,
+        pointHoverRadius: 6,
+        pointHitRadius: 14,
+        fill: false,
+        tension: 0.30,
+        spanGaps: false
+      },
+      makeHorizontalDataset(`${displayName} max ${windowStats.max.toFixed(2)}`, windowStats.max, color, [3, 7], 2.5),
+      makeHorizontalDataset(`${displayName} +STD ${plusStd.toFixed(2)}`, plusStd, color, [13, 8], 2.2),
+      makeHorizontalDataset(`${displayName} -STD ${minusStd.toFixed(2)}`, minusStd, color, [13, 8], 2.2)
+    ];
+  }
+
+  function updateCombinedChart(force = false) {
+    if (!combinedChart) {
       return;
     }
 
-    card.style.setProperty("--stream-color", stream.color);
+    if (plotMode !== "running" && !force) {
+      return;
+    }
 
-    const displayName = card.querySelector('[data-role="display-name"]');
-    const latestTime = card.querySelector('[data-role="latest-time"]');
-    const minuteIndex = card.querySelector('[data-role="minute-index"]');
-    const current = card.querySelector('[data-role="current"]');
-    const avg = card.querySelector('[data-role="avg"]');
-    const max = card.querySelector('[data-role="max"]');
-    const std = card.querySelector('[data-role="std"]');
-    const count = card.querySelector('[data-role="count"]');
-    const colorInput = card.querySelector('[data-action="color"]');
-    const nameInput = card.querySelector('[data-action="name"]');
+    if (!plotStartTimestamp) {
+      combinedChart.data.datasets = [];
+      combinedChart.update("none");
+      lastPlottedCount = 0;
+      plottedSamples.textContent = "0";
+      plotWindowLabel.textContent = "Window: —";
+      return;
+    }
 
-    displayName.textContent = stream.displayName;
-    latestTime.textContent = formatDateTime(stream.latestTimestamp);
-    minuteIndex.textContent = stream.minuteIndex + 1;
+    const visibleStreams = getFilteredSortedStreams();
+    let datasets = [];
+    let plottedCount = 0;
+    let newestWindowStart = null;
+    let newestWindowEnd = null;
+
+    for (const stream of visibleStreams) {
+      const windowInfo = getCurrentPlotWindow(stream);
+      const windowSamples = windowInfo.samples;
+
+      if (windowInfo.windowStart && (!newestWindowStart || windowInfo.windowStart > newestWindowStart)) {
+        newestWindowStart = windowInfo.windowStart;
+        newestWindowEnd = windowInfo.windowEnd;
+      }
+
+      plottedCount += windowSamples.length;
+      datasets = datasets.concat(buildDatasetsForStream(stream, windowSamples));
+    }
+
+    combinedChart.data.datasets = datasets;
+    combinedChart.update("none");
+
+    lastPlottedCount = plottedCount;
+    plottedSamples.textContent = String(lastPlottedCount);
+
+    if (newestWindowStart && newestWindowEnd) {
+      plotWindowLabel.textContent = `Window: ${formatClock(newestWindowStart)} to ${formatClock(newestWindowEnd)}`;
+    } else {
+      plotWindowLabel.textContent = `Window: waiting for samples after ${formatClock(plotStartTimestamp)}`;
+    }
+  }
+
+  function createStreamRow(stream) {
+    const row = document.createElement("section");
+    row.className = "stream-row";
+    row.dataset.streamCode = stream.code;
+    row.style.setProperty("--stream-color", stream.color);
+
+    row.innerHTML = `
+      <div class="stream-id">
+        <div class="stream-name-line">
+          <span class="stream-dot"></span>
+          <span class="stream-code" title="${escapeHtml(stream.code)}">${escapeHtml(stream.displayName)}</span>
+        </div>
+        <div class="stream-interface">
+          Code: ${escapeHtml(stream.code)} · Interface: ${escapeHtml(stream.interfaceName)} · Latest: <span data-role="latest-time">${formatClock(stream.latestTimestamp)}</span>
+        </div>
+      </div>
+
+      <div class="name-editor">
+        <input class="name-input" data-role="display-name-input" value="${escapeHtml(stream.displayName)}" placeholder="Universal plot name">
+        <input class="color-picker" data-role="color-input" type="color" value="${escapeHtml(stream.color)}" title="Universal stream color">
+        <button class="mini-button" data-action="save-settings">Save Name</button>
+      </div>
+
+      <div class="metric-pill">
+        <div class="metric-label">Current</div>
+        <div class="metric-value" data-role="current">${stream.stats.current.toFixed(3)}</div>
+      </div>
+
+      <div class="metric-pill">
+        <div class="metric-label">Average</div>
+        <div class="metric-value" data-role="avg">${stream.stats.avg.toFixed(3)}</div>
+      </div>
+
+      <div class="metric-pill">
+        <div class="metric-label">Max</div>
+        <div class="metric-value" data-role="max">${stream.stats.max.toFixed(3)}</div>
+      </div>
+
+      <div class="metric-pill">
+        <div class="metric-label">Std Dev</div>
+        <div class="metric-value" data-role="std">${stream.stats.std.toFixed(3)}</div>
+      </div>
+
+      <div class="metric-pill">
+        <div class="metric-label">Samples</div>
+        <div class="metric-value" data-role="count">${stream.stats.count}</div>
+      </div>
+
+      <div class="stream-actions">
+        <button class="mini-button danger" data-action="delete-stream">Delete Stream</button>
+      </div>
+    `;
+
+    const nameInput = row.querySelector('[data-role="display-name-input"]');
+    const colorInput = row.querySelector('[data-role="color-input"]');
+    const saveButton = row.querySelector('[data-action="save-settings"]');
+    const deleteButton = row.querySelector('[data-action="delete-stream"]');
+
+    saveButton.addEventListener("click", () => {
+      saveStreamSettings(stream.code, nameInput.value, colorInput.value);
+    });
+
+    nameInput.addEventListener("keydown", event => {
+      if (event.key === "Enter") {
+        saveStreamSettings(stream.code, nameInput.value, colorInput.value);
+      }
+    });
+
+    colorInput.addEventListener("input", () => {
+      saveStreamSettings(stream.code, nameInput.value, colorInput.value, false);
+    });
+
+    deleteButton.addEventListener("click", () => {
+      deleteStream(stream.code);
+    });
+
+    streamList.appendChild(row);
+    rowByCode.set(stream.code, row);
+
+    return row;
+  }
+
+  function updateStreamRow(stream) {
+    const row = rowByCode.get(stream.code);
+
+    if (!row) {
+      return;
+    }
+
+    row.style.setProperty("--stream-color", stream.color);
+
+    const title = row.querySelector(".stream-code");
+    const latestTime = row.querySelector('[data-role="latest-time"]');
+    const current = row.querySelector('[data-role="current"]');
+    const avg = row.querySelector('[data-role="avg"]');
+    const max = row.querySelector('[data-role="max"]');
+    const std = row.querySelector('[data-role="std"]');
+    const count = row.querySelector('[data-role="count"]');
+    const nameInput = row.querySelector('[data-role="display-name-input"]');
+    const colorInput = row.querySelector('[data-role="color-input"]');
+
+    title.textContent = stream.displayName;
+    title.title = stream.code;
+    latestTime.textContent = formatClock(stream.latestTimestamp);
     current.textContent = stream.stats.current.toFixed(3);
     avg.textContent = stream.stats.avg.toFixed(3);
     max.textContent = stream.stats.max.toFixed(3);
     std.textContent = stream.stats.std.toFixed(3);
     count.textContent = stream.stats.count;
 
-    if (colorInput.value !== stream.color) {
-      colorInput.value = stream.color;
-    }
-
     if (document.activeElement !== nameInput && nameInput.value !== stream.displayName) {
       nameInput.value = stream.displayName;
     }
-  }
 
-  function updateChart(stream) {
-    const chart = chartByCode.get(stream.code);
-
-    if (!chart) {
-      return;
+    if (colorInput.value !== stream.color) {
+      colorInput.value = stream.color;
     }
-
-    const values = stream.samples.map(sample => {
-      return {
-        x: getElapsedSecondInMinute(sample.sentAt, stream.startTimestamp),
-        y: sample.throughputMbps
-      };
-    });
-
-    const avgLine = stream.stats.count > 0
-      ? [{ x: 0, y: stream.stats.avg }, { x: 60, y: stream.stats.avg }]
-      : [];
-
-    const maxLine = stream.stats.count > 0
-      ? [{ x: 0, y: stream.stats.max }, { x: 60, y: stream.stats.max }]
-      : [];
-
-    chart.data.datasets[0].data = values;
-    chart.data.datasets[0].label = `${stream.displayName} throughput`;
-    chart.data.datasets[0].borderColor = stream.color;
-
-    const context = chart.ctx;
-    const gradient = context.createLinearGradient(0, 0, 0, chart.height || 460);
-    gradient.addColorStop(0, hexToRgba(stream.color, 0.34));
-    gradient.addColorStop(0.55, hexToRgba(stream.color, 0.10));
-    gradient.addColorStop(1, hexToRgba(stream.color, 0.00));
-    chart.data.datasets[0].backgroundColor = gradient;
-
-    chart.data.datasets[1].data = avgLine;
-    chart.data.datasets[2].data = maxLine;
-
-    chart.update("none");
   }
 
-  function renderStreams() {
+  function renderStreamRows() {
     const visibleStreams = getFilteredSortedStreams();
 
     if (streams.size === 0) {
-      destroyAllCharts();
+      rowByCode.clear();
       renderEmptyState(
         "Waiting for iperfer streams",
         `No throughput samples have been received under ${DATABASE_BRANCH} yet.`
       );
+      updateCombinedChart(true);
       return;
     }
 
     if (visibleStreams.length === 0) {
-      destroyAllCharts();
+      rowByCode.clear();
       renderEmptyState(
         "No matching streams",
-        "No plot name, stream code, or interface name matches your filter."
+        "No stream code, name, or interface matches your filter."
       );
+      updateCombinedChart(true);
       return;
     }
 
-    const existingEmpty = streamsGrid.querySelector(".empty-state");
+    const existingEmpty = streamList.querySelector(".empty-state");
+
     if (existingEmpty) {
-      streamsGrid.innerHTML = "";
-      cardByCode.clear();
-      chartByCode.clear();
+      streamList.innerHTML = "";
+      rowByCode.clear();
     }
 
     const visibleCodes = new Set(visibleStreams.map(stream => stream.code));
 
-    for (const [code, card] of cardByCode.entries()) {
+    for (const [code, row] of rowByCode.entries()) {
       if (!visibleCodes.has(code)) {
-        const chart = chartByCode.get(code);
-        if (chart) {
-          chart.destroy();
-        }
-
-        chartByCode.delete(code);
-        cardByCode.delete(code);
-        card.remove();
+        rowByCode.delete(code);
+        row.remove();
       }
     }
 
     for (const stream of visibleStreams) {
-      if (!cardByCode.has(stream.code)) {
-        createStreamCard(stream);
+      if (!rowByCode.has(stream.code)) {
+        createStreamRow(stream);
       }
 
-      const card = cardByCode.get(stream.code);
-      streamsGrid.appendChild(card);
-
-      updateStreamCard(stream);
-      updateChart(stream);
+      const row = rowByCode.get(stream.code);
+      streamList.appendChild(row);
+      updateStreamRow(stream);
     }
   }
 
-  function destroyAllCharts() {
-    for (const chart of chartByCode.values()) {
-      chart.destroy();
-    }
-
-    chartByCode.clear();
-    cardByCode.clear();
-  }
-
-  async function updateStreamColor(code, color) {
-    if (!isValidHexColor(color)) {
-      showToast("Invalid color.");
-      return;
-    }
+  async function saveStreamSettings(code, displayName, color, showSavedToast = true) {
+    const cleanName = String(displayName || "").trim() || code;
+    const cleanColor = isValidHexColor(color) ? color : getDefaultColor(code);
+    const settingsKey = encodeFirebaseKey(code);
 
     try {
-      await update(ref(db, `${SETTINGS_BRANCH}/${firebaseSafeKey(code)}`), {
-        color,
+      await update(ref(db, `${SETTINGS_BRANCH}/${settingsKey}`), {
+        streamCode: code,
+        displayName: cleanName,
+        color: cleanColor,
         updatedAt: serverTimestamp()
       });
 
-      showToast(`Color updated for ${getStreamDisplayName(code)}.`);
+      if (showSavedToast) {
+        showToast(`Saved universal name/color for ${code}.`);
+      }
     } catch (error) {
-      showToast(`Color update failed: ${error.message}`);
-    }
-  }
-
-  async function saveStreamName(code, name) {
-    const cleanedName = String(name ?? "").trim();
-    const displayName = cleanedName || String(code);
-
-    try {
-      await update(ref(db, `${SETTINGS_BRANCH}/${firebaseSafeKey(code)}`), {
-        displayName,
-        streamCode: String(code),
-        updatedAt: serverTimestamp()
-      });
-
-      showToast(`Plot name saved as "${displayName}".`);
-    } catch (error) {
-      showToast(`Name update failed: ${error.message}`);
+      showToast(`Name/color save failed: ${error.message}`);
     }
   }
 
@@ -1483,7 +1652,7 @@
     }
 
     const confirmed = confirm(
-      `Delete all received samples and shared settings for plot "${stream.displayName}" from Firebase?`
+      `Delete all received samples for stream "${code}" from Firebase branch "${DATABASE_BRANCH}"?`
     );
 
     if (!confirmed) {
@@ -1493,12 +1662,15 @@
     try {
       const matchingSamples = allSamples.filter(sample => sample.streamCode === code);
 
-      await Promise.all([
-        ...matchingSamples.map(sample => remove(ref(db, `${DATABASE_BRANCH}/${sample.key}`))),
-        remove(ref(db, `${SETTINGS_BRANCH}/${firebaseSafeKey(code)}`))
-      ]);
+      await Promise.all(
+        matchingSamples.map(sample => {
+          return remove(ref(db, `${DATABASE_BRANCH}/${sample.key}`));
+        })
+      );
 
-      showToast(`Deleted ${matchingSamples.length} samples for ${stream.displayName}.`);
+      await remove(ref(db, `${SETTINGS_BRANCH}/${encodeFirebaseKey(code)}`));
+
+      showToast(`Deleted ${matchingSamples.length} samples and settings for ${code}.`);
     } catch (error) {
       showToast(`Delete failed: ${error.message}`);
     }
@@ -1511,7 +1683,7 @@
     }
 
     const confirmed = confirm(
-      `Delete ALL ${allSamples.length} received samples and ALL shared plot settings from Firebase?`
+      `Delete ALL ${allSamples.length} received samples from Firebase branch "${DATABASE_BRANCH}"? This also clears all universal stream names/colors.`
     );
 
     if (!confirmed) {
@@ -1519,33 +1691,94 @@
     }
 
     try {
-      await Promise.all([
-        remove(ref(db, DATABASE_BRANCH)),
-        remove(ref(db, SETTINGS_BRANCH))
-      ]);
-
-      showToast("All stream samples and shared settings deleted.");
+      await remove(ref(db, DATABASE_BRANCH));
+      await remove(ref(db, SETTINGS_BRANCH));
+      stopPlotting();
+      showToast("All stream samples and settings deleted.");
     } catch (error) {
       showToast(`Delete failed: ${error.message}`);
     }
   }
 
-  function refreshFromCurrentState() {
-    streams = groupSamplesByStream(allSamples);
+  function startPlotting() {
+    const newest = allSamples.length > 0 ? allSamples[allSamples.length - 1].sentAt : Date.now();
+
+    plotMode = "running";
+    plotStartTimestamp = newest || Date.now();
+    lastPlottedCount = 0;
+
+    if (combinedChart) {
+      combinedChart.data.datasets = [];
+      combinedChart.update("none");
+    }
+
+    updateCombinedChart(true);
     updateTopStats();
-    renderStreams();
+    showToast(`Plotting started at ${formatClock(plotStartTimestamp)}.`);
   }
 
-  onValue(
-    ref(db, SETTINGS_BRANCH),
-    snapshot => {
-      streamSettings = snapshot.val() || {};
-      refreshFromCurrentState();
-    },
-    error => {
-      showToast(`Settings listener error: ${error.message}`);
+  function pausePlotting() {
+    if (plotMode !== "running") {
+      return;
     }
-  );
+
+    plotMode = "paused";
+    updateTopStats();
+    showToast("Plotting paused. Firebase receiving continues.");
+  }
+
+  function resumePlotting() {
+    if (plotMode !== "paused") {
+      return;
+    }
+
+    plotMode = "running";
+    updateCombinedChart(true);
+    updateTopStats();
+    showToast("Plotting resumed and caught up with received samples.");
+  }
+
+  function stopPlotting() {
+    plotMode = "stopped";
+    plotStartTimestamp = null;
+    lastPlottedCount = 0;
+    plottedSamples.textContent = "0";
+    plotWindowLabel.textContent = "Window: —";
+
+    if (combinedChart) {
+      combinedChart.data.datasets = [];
+      combinedChart.update("none");
+    }
+
+    updateTopStats();
+    showToast("Plot stopped and chart cleared. Receiving continues.");
+  }
+
+  onValue(ref(db, SETTINGS_BRANCH), snapshot => {
+    const data = snapshot.val() || {};
+    const nextSettings = new Map();
+
+    for (const [key, value] of Object.entries(data)) {
+      if (!value || typeof value !== "object") {
+        continue;
+      }
+
+      const code = String(value.streamCode || value.code || key);
+      nextSettings.set(code, {
+        displayName: String(value.displayName || value.name || code),
+        color: isValidHexColor(value.color) ? value.color : getDefaultColor(code)
+      });
+    }
+
+    settingsByCode = nextSettings;
+    streams = groupSamplesByStream(allSamples);
+    renderStreamRows();
+    updateTopStats();
+
+    if (plotMode === "running") {
+      updateCombinedChart(true);
+    }
+  });
 
   onValue(
     streamsQuery,
@@ -1557,9 +1790,11 @@
       if (!data) {
         allSamples = [];
         streams = new Map();
-        updateTopStats();
-        renderStreams();
         previousSampleCount = 0;
+        lastPlottedCount = 0;
+        updateTopStats();
+        renderStreamRows();
+        updateCombinedChart(true);
         return;
       }
 
@@ -1567,7 +1802,15 @@
         .map(([key, value]) => normalizeSample(key, value))
         .sort((a, b) => a.sentAt - b.sentAt);
 
-      refreshFromCurrentState();
+      streams = groupSamplesByStream(allSamples);
+
+      renderStreamRows();
+
+      if (plotMode === "running") {
+        updateCombinedChart();
+      }
+
+      updateTopStats();
 
       if (allSamples.length > previousSampleCount) {
         const newCount = allSamples.length - previousSampleCount;
@@ -1586,15 +1829,30 @@
     }
   );
 
-  searchInput.addEventListener("input", renderStreams);
-  sortSelect.addEventListener("change", renderStreams);
+  searchInput.addEventListener("input", () => {
+    renderStreamRows();
+    updateCombinedChart(true);
+  });
+
+  sortSelect.addEventListener("change", () => {
+    renderStreamRows();
+    updateCombinedChart(true);
+  });
 
   clearSearchButton.addEventListener("click", () => {
     searchInput.value = "";
-    renderStreams();
+    renderStreamRows();
+    updateCombinedChart(true);
   });
 
+  startPlotButton.addEventListener("click", startPlotting);
+  pausePlotButton.addEventListener("click", pausePlotting);
+  resumePlotButton.addEventListener("click", resumePlotting);
+  stopPlotButton.addEventListener("click", stopPlotting);
   deleteAllButton.addEventListener("click", deleteAllStreams);
+
+  createCombinedChart();
+  updatePlotStateUi();
 </script>
 
 </body>
