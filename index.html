@@ -893,7 +893,7 @@
     </div>
 
     <div class="plot-legend-note">
-      Solid lines = all stream throughput curves plotted together in the same global 0–60 s window. Dashed line = per-stream average throughput for that visible window.
+      Smoothed solid lines = all stream throughput curves plotted together in the same global 0–60 s window with point markers hidden. Dashed line = per-stream average throughput for that visible window.
     </div>
   </section>
 
@@ -1649,9 +1649,14 @@
         },
         elements: {
           line: {
-            tension: 0,
+            tension: 0.35,
             cubicInterpolationMode: "monotone",
             spanGaps: false
+          },
+          point: {
+            radius: 0,
+            hoverRadius: 0,
+            hitRadius: 14
           }
         },
         interaction: {
@@ -1663,7 +1668,7 @@
             display: true,
             position: "top",
             labels: {
-              usePointStyle: true,
+              usePointStyle: false,
               boxWidth: 11,
               boxHeight: 11,
               padding: 18,
@@ -2009,11 +2014,11 @@
           borderColor: color,
           backgroundColor: hexToRgba(color, 0.14),
           borderWidth: 4.4,
-          pointRadius: 2.8,
-          pointHoverRadius: 6.2,
+          pointRadius: 0,
+          pointHoverRadius: 0,
           pointHitRadius: 14,
           fill: false,
-          tension: 0,
+          tension: 0.35,
           cubicInterpolationMode: "monotone",
           spanGaps: false,
           streamCode: stream.code,
