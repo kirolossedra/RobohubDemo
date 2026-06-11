@@ -893,7 +893,7 @@
     </div>
 
     <div class="plot-legend-note">
-      Smoothed solid lines = all stream throughput curves plotted together in the same global 0–60 s window with point markers hidden. No dashed reference lines are drawn on the chart.
+      Smoothed solid lines = all stream throughput curves plotted together in the same global 0–60 s window with point markers hidden. No dashed reference lines are drawn, and the legend order is fixed by first stream appearance so it does not jump as new samples arrive.
     </div>
   </section>
 
@@ -1057,6 +1057,13 @@
   let previousSampleCount = 0;
   let combinedChart = null;
 
+  // Stable chart/legend ordering:
+  // The stream-control table may be sorted by latest sample, name, or average.
+  // The chart must NOT use that changing order, otherwise the legend jumps left/right
+  // whenever a different stream receives the newest Firebase sample.
+  let stablePlotOrderByCode = new Map();
+  let nextStablePlotOrder = 0;
+
   let plotMode = "stopped";
   let plotStartTimestamp = null;
   let plotExcludedKeys = new Set();
@@ -1109,6 +1116,27 @@
     const color = isValidHexColor(saved.color) ? saved.color : getDefaultColor(code);
 
     return { displayName, color };
+  }
+
+  function getStablePlotOrder(code) {
+    const key = String(code ?? "");
+
+    if (!stablePlotOrderByCode.has(key)) {
+      stablePlotOrderByCode.set(key, nextStablePlotOrder);
+      nextStablePlotOrder += 1;
+    }
+
+    return stablePlotOrderByCode.get(key);
+  }
+
+  function getChartOrderedStreams() {
+    return getFilteredSortedStreams()
+      .map(stream => ({
+        stream,
+        stableOrder: getStablePlotOrder(stream.code)
+      }))
+      .sort((a, b) => a.stableOrder - b.stableOrder || a.stream.code.localeCompare(b.stream.code))
+      .map(item => item.stream);
   }
 
   function hexToRgba(hex, alpha) {
@@ -1433,6 +1461,8 @@
       const stats = computeStats(trimmedSamples);
       const settings = getStreamSettings(code);
 
+      getStablePlotOrder(code);
+
       streamMap.set(code, {
         code,
         displayName: settings.displayName,
@@ -1676,6 +1706,14 @@
               font: {
                 size: 16,
                 weight: "bold"
+              },
+              sort: (a, b, chartData) => {
+                const datasetA = chartData.datasets?.[a.datasetIndex] || {};
+                const datasetB = chartData.datasets?.[b.datasetIndex] || {};
+                const orderA = Number.isFinite(datasetA.stablePlotOrder) ? datasetA.stablePlotOrder : Number.MAX_SAFE_INTEGER;
+                const orderB = Number.isFinite(datasetB.stablePlotOrder) ? datasetB.stablePlotOrder : Number.MAX_SAFE_INTEGER;
+
+                return orderA - orderB || String(datasetA.label || "").localeCompare(String(datasetB.label || ""));
               }
             }
           },
@@ -1979,12 +2017,15 @@
 
     const displayName = stream.displayName || stream.code;
     const color = stream.color;
+    const stablePlotOrder = getStablePlotOrder(stream.code);
 
     return {
       datasets: [
         {
           datasetId: `${streamKey}::throughput`,
           label: `${displayName} throughput`,
+          stablePlotOrder,
+          order: stablePlotOrder,
           data: points,
           borderColor: color,
           backgroundColor: hexToRgba(color, 0.14),
@@ -2053,7 +2094,7 @@
       return;
     }
 
-    const visibleStreams = getFilteredSortedStreams();
+    const visibleStreams = getChartOrderedStreams();
     const globalPlotContext = getGlobalPlotContext(visibleStreams);
     const desiredDatasets = [];
     let plottedCount = 0;
