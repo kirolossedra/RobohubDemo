@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>Iperfer Combined Live Throughput Plot</title>
+<title>Iperfer Combined Smooth Throughput Plot</title>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 
@@ -893,7 +893,7 @@
     </div>
 
     <div class="plot-legend-note">
-      Smoothed solid lines = all stream throughput curves plotted together in the same global 0–60 s window with point markers hidden. Dashed line = per-stream average throughput for that visible window.
+      Smoothed solid lines = all stream throughput curves plotted together in the same global 0–60 s window with point markers hidden. No dashed reference lines are drawn on the chart.
     </div>
   </section>
 
@@ -1941,30 +1941,6 @@
     };
   }
 
-  function makeHorizontalDataset(datasetId, label, yValue, color, dash, width = 2, streamCode = "", axisSource = "", lineRole = "reference") {
-    return {
-      datasetId,
-      label,
-      data: [
-        { x: 0, y: yValue },
-        { x: 60, y: yValue }
-      ],
-      borderColor: color,
-      backgroundColor: color,
-      borderWidth: width,
-      borderDash: dash,
-      pointRadius: 0,
-      pointHoverRadius: 0,
-      pointHitRadius: 0,
-      fill: false,
-      tension: 0,
-      spanGaps: false,
-      streamCode,
-      axisSource,
-      lineRole
-    };
-  }
-
   function buildDatasetsForStream(stream, globalPlotContext) {
     const plotSamples = globalPlotContext.samplesByCode.get(stream.code) || [];
     const streamKey = encodeFirebaseKey(stream.code);
@@ -2001,7 +1977,6 @@
       };
     }
 
-    const windowStats = computeStats(plotSamples);
     const displayName = stream.displayName || stream.code;
     const color = stream.color;
 
@@ -2024,8 +1999,7 @@
           streamCode: stream.code,
           axisSource: globalPlotContext.source,
           lineRole: "throughput"
-        },
-        makeHorizontalDataset(`${streamKey}::avg`, `${displayName} average`, windowStats.avg, color, [9, 7], 2.6, stream.code, globalPlotContext.source, "average")
+        }
       ],
       plottedCount: points.length,
       windowStartOffset: globalPlotContext.windowStartSec,
