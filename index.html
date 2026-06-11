@@ -398,7 +398,7 @@
 
   .stream-row {
     display: grid;
-    grid-template-columns: minmax(260px, 1.1fr) minmax(300px, 1.35fr) repeat(5, minmax(110px, 0.55fr)) minmax(190px, 0.75fr);
+    grid-template-columns: minmax(260px, 1.1fr) minmax(300px, 1.35fr) minmax(130px, 0.55fr) minmax(190px, 0.75fr);
     gap: 10px;
     align-items: center;
     border: 1px solid rgba(148, 163, 184, 0.19);
@@ -699,7 +699,7 @@
 
   @media (max-width: 1500px) {
     .stream-row {
-      grid-template-columns: minmax(240px, 1fr) minmax(280px, 1.2fr) repeat(3, minmax(110px, 0.55fr));
+      grid-template-columns: minmax(240px, 1fr) minmax(280px, 1.2fr) minmax(130px, 0.55fr);
     }
 
     .stream-actions {
@@ -864,8 +864,6 @@
         <option value="latest">Sort by latest sample</option>
         <option value="name">Sort by display name</option>
         <option value="avg">Sort by average throughput</option>
-        <option value="max">Sort by max throughput</option>
-        <option value="std">Sort by standard deviation</option>
       </select>
     </div>
 
@@ -895,7 +893,7 @@
     </div>
 
     <div class="plot-legend-note">
-      Solid lines = all stream throughput curves plotted together in the same global 0–60 s window. Short dashed line = per-stream max. Long dashed lines = average + STD and average − STD for that stream.
+      Solid lines = all stream throughput curves plotted together in the same global 0–60 s window. Dashed line = per-stream average throughput for that visible window.
     </div>
   </section>
 
@@ -1402,8 +1400,6 @@
       return {
         current: 0,
         avg: 0,
-        max: 0,
-        std: 0,
         count: 0
       };
     }
@@ -1412,11 +1408,8 @@
     const current = values[count - 1];
     const sum = values.reduce((acc, value) => acc + value, 0);
     const avg = sum / count;
-    const max = Math.max(...values);
-    const variance = values.reduce((acc, value) => acc + Math.pow(value - avg, 2), 0) / count;
-    const std = Math.sqrt(variance);
 
-    return { current, avg, max, std, count };
+    return { current, avg, count };
   }
 
   function groupSamplesByStream(samples) {
@@ -1478,10 +1471,6 @@
       list.sort((a, b) => a.displayName.localeCompare(b.displayName));
     } else if (sortMode === "avg") {
       list.sort((a, b) => b.stats.avg - a.stats.avg);
-    } else if (sortMode === "max") {
-      list.sort((a, b) => b.stats.max - a.stats.max);
-    } else if (sortMode === "std") {
-      list.sort((a, b) => b.stats.std - a.stats.std);
     } else {
       list.sort((a, b) => b.latestTimestamp - a.latestTimestamp);
     }
@@ -1564,7 +1553,7 @@
             Display: <strong>${escapeHtml(stream.displayName)}</strong><br>
             Identity source: ${escapeHtml(stream.identitySource)}<br>
             Interface: ${escapeHtml(stream.interfaceName)}<br>
-            Samples: ${stream.stats.count} · Latest Mbps: ${stream.stats.current.toFixed(3)}<br>
+            Samples: ${stream.stats.count} · Average Mbps: ${stream.stats.avg.toFixed(3)}<br>
             Latest elapsedEndSec: ${latest?.elapsedEndSec ?? "—"} · Latest key: ${escapeHtml(latest?.key ?? "—")}
           </div>
         </div>
@@ -2010,8 +1999,6 @@
     const windowStats = computeStats(plotSamples);
     const displayName = stream.displayName || stream.code;
     const color = stream.color;
-    const plusStd = windowStats.avg + windowStats.std;
-    const minusStd = Math.max(0, windowStats.avg - windowStats.std);
 
     return {
       datasets: [
@@ -2033,9 +2020,7 @@
           axisSource: globalPlotContext.source,
           lineRole: "throughput"
         },
-        makeHorizontalDataset(`${streamKey}::max`, `${displayName} max`, windowStats.max, color, [3, 7], 2.5, stream.code, globalPlotContext.source, "max"),
-        makeHorizontalDataset(`${streamKey}::plusStd`, `${displayName} +STD`, plusStd, color, [13, 8], 2.2, stream.code, globalPlotContext.source, "+STD"),
-        makeHorizontalDataset(`${streamKey}::minusStd`, `${displayName} -STD`, minusStd, color, [13, 8], 2.2, stream.code, globalPlotContext.source, "-STD")
+        makeHorizontalDataset(`${streamKey}::avg`, `${displayName} average`, windowStats.avg, color, [9, 7], 2.6, stream.code, globalPlotContext.source, "average")
       ],
       plottedCount: points.length,
       windowStartOffset: globalPlotContext.windowStartSec,
@@ -2161,28 +2146,8 @@
       </div>
 
       <div class="metric-pill">
-        <div class="metric-label">Current</div>
-        <div class="metric-value" data-role="current">${stream.stats.current.toFixed(3)}</div>
-      </div>
-
-      <div class="metric-pill">
         <div class="metric-label">Average</div>
         <div class="metric-value" data-role="avg">${stream.stats.avg.toFixed(3)}</div>
-      </div>
-
-      <div class="metric-pill">
-        <div class="metric-label">Max</div>
-        <div class="metric-value" data-role="max">${stream.stats.max.toFixed(3)}</div>
-      </div>
-
-      <div class="metric-pill">
-        <div class="metric-label">Std Dev</div>
-        <div class="metric-value" data-role="std">${stream.stats.std.toFixed(3)}</div>
-      </div>
-
-      <div class="metric-pill">
-        <div class="metric-label">Samples</div>
-        <div class="metric-value" data-role="count">${stream.stats.count}</div>
       </div>
 
       <div class="stream-actions">
@@ -2231,11 +2196,7 @@
     const title = row.querySelector(".stream-code");
     const latestTime = row.querySelector('[data-role="latest-time"]');
     const latestElapsed = row.querySelector('[data-role="latest-elapsed"]');
-    const current = row.querySelector('[data-role="current"]');
     const avg = row.querySelector('[data-role="avg"]');
-    const max = row.querySelector('[data-role="max"]');
-    const std = row.querySelector('[data-role="std"]');
-    const count = row.querySelector('[data-role="count"]');
     const nameInput = row.querySelector('[data-role="display-name-input"]');
     const colorInput = row.querySelector('[data-role="color-input"]');
 
@@ -2245,11 +2206,7 @@
     if (latestElapsed) {
       latestElapsed.textContent = stream.latestSample?.elapsedEndSec ?? "—";
     }
-    current.textContent = stream.stats.current.toFixed(3);
     avg.textContent = stream.stats.avg.toFixed(3);
-    max.textContent = stream.stats.max.toFixed(3);
-    std.textContent = stream.stats.std.toFixed(3);
-    count.textContent = stream.stats.count;
 
     if (document.activeElement !== nameInput && nameInput.value !== stream.displayName) {
       nameInput.value = stream.displayName;
